@@ -890,8 +890,8 @@ const _vrCtrl = [0, 1].map(i => {
 });
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
-const _VR_COLS = 4, _VR_ROWS = 8;
-const _VR_CV_W = 640, _VR_CV_H = 1024;
+const _VR_COLS = 4, _VR_ROWS = 10;
+const _VR_CV_W = 640, _VR_CV_H = 1280;
 const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
 
@@ -909,47 +909,71 @@ const _vrToggleAll = () => {
     window.handlePartVisibility('all', v);
 };
 
+// VR-ын хувьд rig-ийг шилжүүлэн "гадаа/дотор/гарах" хийнэ (walkControls.lock нь VR-д ажиллахгүй)
+const _vrTeleportRig = (x, z, ry = Math.PI / 2) => {
+    if (!renderer.xr.isPresenting) return;
+    const xrCam = renderer.xr.getCamera();
+    const rig = xrCam.parent;
+    if (!rig) return;
+    rig.position.set(x, 0, z);
+    rig.rotation.y = ry;
+    rig.updateMatrixWorld(true);
+};
+const _vrWalkOutside = () => _vrTeleportRig(8, 12, Math.PI);      // гадуур — ~8м зайд
+const _vrWalkInside  = () => _vrTeleportRig(0, 3.5, Math.PI);     // дотор — хаалган дотор
+const _vrWalkExit    = () => _vrTeleportRig(6, 0, Math.PI / 2);   // анхны спавн
+
 const _vrMenuButtons = [
     // Row 1 — Үндсэн үйлдлүүд
     { label: 'ГЭР БАРИХ',  color: '#1E4E8C', action: () => window.buildGer() },
     { label: 'БҮГД',        color: '#3A5A3A', action: () => _vrToggleAll() },
     { label: 'ЭВХЭХ',       color: '#555555', action: () => window.setAllFold(0.12) },
     { label: 'ДЭЛГЭХ',      color: '#555555', action: () => window.setAllFold(1.0) },
-    // Row 2 — Хаалга, эргүүлэх, буцах
+    // Row 2 — Ханын scroll (эвхэх түвшин)
+    { label: 'ЭВХ 25%',     color: '#4A4030', action: () => window.setAllFold(0.25) },
+    { label: 'ЭВХ 50%',     color: '#4A4030', action: () => window.setAllFold(0.50) },
+    { label: 'ЭВХ 75%',     color: '#4A4030', action: () => window.setAllFold(0.75) },
+    { label: 'ЭВХ 90%',     color: '#4A4030', action: () => window.setAllFold(0.90) },
+    // Row 3 — Хаалга, эргүүлэх, буцах
     { label: 'ХААЛГА НЭЭХ', color: '#2A6E1A', action: () => window.openDoor() },
     { label: 'ХААЛГА ХААХ', color: '#6E1A1A', action: () => window.closeDoor() },
     { label: 'ЭРГҮҮЛЭХ',    color: '#555555', action: () => window.toggleRotation() },
     { label: 'БУЦАХ',       color: '#555555', action: () => window.resetView() },
-    // Row 3 — Хана 1-4
+    // Row 4 — Явах горим + Суралцах
+    { label: 'ГАДАА ЯВАХ',  color: '#2A6E1A', action: () => _vrWalkOutside() },
+    { label: 'ДОТОР ОРОХ',  color: '#2A6E1A', action: () => _vrWalkInside() },
+    { label: 'ГАРАХ',       color: '#6E1A1A', action: () => _vrWalkExit() },
+    { label: 'СУРАЛЦАХ',    color: '#5E4A1A', action: () => window.toggleLearnMode() },
+    // Row 5 — Хана 1-4
     { label: 'ХАНА 1',      color: '#4A4030', action: () => window.toggleKhana(0) },
     { label: 'ХАНА 2',      color: '#4A4030', action: () => window.toggleKhana(1) },
     { label: 'ХАНА 3',      color: '#4A4030', action: () => window.toggleKhana(2) },
     { label: 'ХАНА 4',      color: '#4A4030', action: () => window.toggleKhana(3) },
-    // Row 4 — Хана 5 + модон хэсэг
+    // Row 6 — Хана 5 + модон хэсэг
     { label: 'ХАНА 5',      color: '#4A4030', action: () => window.toggleKhana(4) },
     { label: 'ХААЛГА',      color: '#5A3A1A', action: () => _vrTogglePart('door') },
     { label: 'БАГАНА',      color: '#5A3A1A', action: () => _vrTogglePart('bagana') },
     { label: 'ТООНО',       color: '#5A3A1A', action: () => _vrTogglePart('toono') },
-    // Row 5 — Үлдсэн модон хэсэг + туурга
+    // Row 7 — Үлдсэн модон хэсэг + туурга
     { label: 'УНЬ',         color: '#5A3A1A', action: () => _vrTogglePart('un') },
     { label: 'ДЭЭВЭР',      color: '#5A3A1A', action: () => _vrTogglePart('roof') },
     { label: 'ГАДНА ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-1') },
     { label: 'ДОТОР ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-2') },
-    // Row 6 — Бүслүүр + Суралцах
+    // Row 8 — Бүслүүр + Наадам
     { label: 'ДООД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-1') },
     { label: 'ДУНД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-2') },
     { label: 'ДЭЭД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-3') },
-    { label: 'СУРАЛЦАХ',    color: '#5E4A1A', action: () => window.toggleLearnMode() },
-    // Row 7 — Цаг агаар (1)
+    { label: 'НААДАМ',      color: '#A02828', action: () => window.toggleNaadam() },
+    // Row 9 — Цаг агаар (1)
     { label: 'ӨДӨР/ШӨНӨ',   color: '#1E1E4E', action: () => window.toggleDayNight() },
     { label: 'AUTO ЦАГ',    color: '#1E1E4E', action: () => window.toggleAutoCycle() },
     { label: 'БОРОО',       color: '#1A3E5E', action: () => window.toggleRain() },
     { label: 'ЦАС',         color: '#3A5A7A', action: () => window.toggleSnow() },
-    // Row 8 — Цаг агаар (2) + Наадам + Дуу
+    // Row 10 — Цаг агаар (2) + Дуу
     { label: 'МАНАН',       color: '#3A3A4A', action: () => window.toggleFog() },
     { label: 'ӨВӨЛ',        color: '#2E5E8A', action: () => window.toggleWinter() },
-    { label: 'НААДАМ',      color: '#A02828', action: () => window.toggleNaadam() },
     { label: 'ДУУ',         color: '#4A2A5E', action: () => window.toggleSound() },
+    { label: '',            color: '#2A2A2A', action: () => {} },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -961,7 +985,7 @@ _vrTex.minFilter = THREE.LinearFilter;
 _vrTex.magFilter = THREE.LinearFilter;
 
 const _vrMenuMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.34, 0.54),
+    new THREE.PlaneGeometry(0.32, 0.64),
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
@@ -4185,6 +4209,22 @@ window.buildGer = function () {
         animTo(o, _getHome(o), 0.9, _getHome(o).clone().add(new THREE.Vector3(0, 9, 0)));
     }, d);
     d += 750;
+
+    // 9. Баталгаажуулалт — анимац дуусмагц БҮХ хэсгийг харуулна, checkbox-уудыг зөв болгоно
+    setTimeout(() => {
+        ger.setKhanaVisible(-1, true);
+        ger.getTuurga().setVisible(-1, true);
+        ger.getBvsluur().setVisible(-1, true);
+        ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, true));
+        // Web UI checkbox sync
+        ['all', 'door', 'bagana', 'toono', 'un', 'roof',
+         'tuurga-1', 'tuurga-2', 'bvsluur-1', 'bvsluur-2', 'bvsluur-3',
+         'khana-0', 'khana-1', 'khana-2', 'khana-3', 'khana-4'
+        ].forEach(id => {
+            const cb = document.getElementById('check-' + id);
+            if (cb) cb.checked = true;
+        });
+    }, d + 200);
 
 };
 
