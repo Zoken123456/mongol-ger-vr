@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Монгол Гэр VR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+Mongolian&family=Noto+Sans:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            image-rendering: pixelated;
+            background: #1a1a1a;
+        }
+        canvas { display: block; }
+
+        /* Pixel загвартай гарчиг, энгийн уншигдах label */
+        .pixel { font-family: 'Press Start 2P', monospace; }
+
+        /* ── Minecraft inventory panel ── */
+        #ui-container {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: #3C3C3C;
+            border: 3px solid #555;
+            border-bottom-color: #1A1A1A;
+            border-right-color: #1A1A1A;
+            padding: 16px 14px 12px;
+            width: 320px;
+            color: #FFFFFF;
+            font-size: 13px;
+            line-height: 1.55;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 0 2px #888, 4px 4px 0 #000;
+        }
+
+        h2 {
+            font-family: 'Press Start 2P', monospace;
+            margin: 0 0 14px 0;
+            font-size: 13px;
+            text-align: center;
+            color: #FFFF55;
+            text-shadow: 2px 2px 0 #555500;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            color: #EEEEEE;
+            padding: 4px 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        label:hover { color: #FFFF55; }
+
+        input[type="checkbox"] {
+            appearance: none;
+            width: 16px; height: 16px;
+            background: #1A1A1A;
+            border: 2px solid #888;
+            margin-right: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        input[type="checkbox"]:checked {
+            background: #55FF55;
+            border-color: #00AA00;
+        }
+
+        input[type="range"] {
+            accent-color: #55FF55;
+            height: 8px;
+            width: 100%;
+        }
+
+        /* Section headers — пиксел гарчиг + энгийн дэд гарчиг */
+        .mc-section {
+            font-family: 'Press Start 2P', monospace;
+            margin: 14px 0 8px 0;
+            padding: 8px 8px 7px;
+            font-size: 11px;
+            color: #FFFF55;
+            background: #2A2A2A;
+            border-top: 2px solid #555;
+            border-bottom: 2px solid #1A1A1A;
+            text-shadow: 2px 2px 0 #1A1A1A;
+            letter-spacing: 1.5px;
+        }
+        .mc-section .mc-sub {
+            display: block;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            color: #BBBBBB;
+            margin-top: 4px;
+            text-shadow: none;
+            letter-spacing: 0;
+        }
+
+        /* Minecraft-style button */
+        button {
+            margin-top: 6px;
+            padding: 9px 6px;
+            width: 100%;
+            border: none;
+            border-bottom: 3px solid #1A1A1A;
+            border-right: 3px solid #1A1A1A;
+            border-top: 2px solid #CCCCCC;
+            border-left: 2px solid #CCCCCC;
+            background: #555555;
+            color: #FFFFFF;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-shadow: 1px 1px 0 #1A1A1A;
+            image-rendering: pixelated;
+        }
+        button:hover {
+            background: #666666;
+            color: #FFFF55;
+        }
+        button:active {
+            border-top-color: #1A1A1A;
+            border-left-color: #1A1A1A;
+            border-bottom-color: #CCCCCC;
+            border-right-color: #CCCCCC;
+            transform: translate(1px, 1px);
+        }
+
+        /* Colored action buttons */
+        button.mc-blue  { background: #1E4E8C; border-bottom-color: #0A1E3C; border-right-color: #0A1E3C; }
+        button.mc-green { background: #2A6E1A; border-bottom-color: #0E2A0A; border-right-color: #0E2A0A; }
+        button.mc-red   { background: #6E1A1A; border-bottom-color: #2A0A0A; border-right-color: #2A0A0A; }
+        button.mc-night { background: #1E1E4E; border-bottom-color: #0A0A1E; border-right-color: #0A0A1E; }
+        button.mc-rain  { background: #1A3E5E; border-bottom-color: #0A1A2A; border-right-color: #0A1A2A; }
+        button.mc-snow  { background: #3A5A7A; border-bottom-color: #1A2A3A; border-right-color: #1A2A3A; }
+        button.mc-fog   { background: #3A3A4A; border-bottom-color: #1A1A2A; border-right-color: #1A1A2A; }
+        button.mc-sound { background: #4A2A5E; border-bottom-color: #2A1040; border-right-color: #2A1040; }
+        button.mc-learn { background: #5E4A1A; border-bottom-color: #2E1A00; border-right-color: #2E1A00; }
+        button.mc-naadam { background: #A02828; border-bottom-color: #501010; border-right-color: #501010; }
+        button.mc-winter { background: #2E5E8A; border-bottom-color: #0E2A44; border-right-color: #0E2A44; }
+
+        /* Хана grid: нэр + 2 товч */
+        .khana-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            align-items: center;
+            gap: 4px;
+            margin-top: 3px;
+        }
+        .khana-row label { margin: 0; font-size: 13px; }
+        .khana-row button {
+            margin: 0;
+            padding: 5px 9px;
+            font-size: 12px;
+            min-width: 30px;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+        .grid-2 label, .grid-3 label { margin: 0; font-size: 12px; }
+        .grid-2 button, .grid-3 button { margin-top: 0; }
+
+        /* Гарын товчлуурын footer */
+        .mc-keys {
+            margin-top: 14px;
+            padding: 9px 6px;
+            background: #2A2A2A;
+            border-top: 2px solid #555;
+            border-bottom: 2px solid #1A1A1A;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 2;
+            color: #BBBBBB;
+            text-align: center;
+        }
+        .mc-keys .kbd {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 0 3px;
+            background: #1A1A1A;
+            border-top: 1px solid #888;
+            border-left: 1px solid #888;
+            border-bottom: 2px solid #000;
+            border-right: 2px solid #000;
+            color: #FFFF55;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+        }
+
+        /* Close/toggle */
+        #ui-toggle {
+            position: absolute;
+            top: 16px; left: 16px;
+            z-index: 999;
+            padding: 9px 14px;
+            background: #555;
+            color: #FFF;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
+            border: none;
+            border-bottom: 3px solid #1A1A1A;
+            border-right: 3px solid #1A1A1A;
+            border-top: 2px solid #CCC;
+            border-left: 2px solid #CCC;
+            cursor: pointer;
+            display: none;
+        }
+        #ui-toggle:hover { background: #666; color: #FFFF55; }
+
+        h2 button {
+            width: auto;
+            margin: 0;
+            padding: 4px 9px;
+            font-size: 12px;
+        }
+
+        /* Walk hint */
+        #walk-hint {
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif !important;
+            font-weight: 700;
+            font-size: 13px !important;
+            background: rgba(0,0,0,0.85) !important;
+            border: 2px solid #555 !important;
+            color: #FFF;
+            padding: 10px 18px;
+            border-radius: 0;
+        }
+        #walk-hint .kbd {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #1A1A1A;
+            border: 1px solid #888;
+            color: #FFFF55;
+            margin: 0 3px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
+        }
+
+        /* Scrollable panel */
+        #ui-container { max-height: 95vh; overflow-y: auto; overflow-x: hidden; }
+        #ui-container::-webkit-scrollbar { width: 6px; }
+        #ui-container::-webkit-scrollbar-track { background: #1A1A1A; }
+        #ui-container::-webkit-scrollbar-thumb { background: #555; }
+
+        /* ── Tooltip систем (CSS only) ── */
+        [data-tip] { position: relative; }
+        [data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translate(10px, -50%);
+            background: #1A1A1A;
+            color: #FFFF55;
+            border-top: 2px solid #888;
+            border-left: 2px solid #888;
+            border-bottom: 2px solid #000;
+            border-right: 2px solid #000;
+            padding: 7px 10px;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            font-weight: 500;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: nowrap;
+            z-index: 1000;
+            pointer-events: none;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        /* ── Welcome — кино шиг, орчин үеийн загвар ── */
+        #welcome-overlay {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 30% 20%, rgba(200,140,80,0.18) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(80,120,180,0.18) 0%, transparent 55%),
+                linear-gradient(180deg, #0a0a12 0%, #1a1a24 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            animation: welcomeFade 0.6s ease-out;
+        }
+        @keyframes welcomeFade {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        #welcome-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        .welcome-box {
+            background: rgba(20,20,28,0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 18px;
+            padding: 36px 40px 30px;
+            max-width: 560px;
+            width: calc(100% - 40px);
+            color: #FFFFFF;
+            font-size: 15px;
+            line-height: 1.7;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset;
+            animation: boxRise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes boxRise {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .welcome-box .crest {
+            font-size: 56px;
+            text-align: center;
+            line-height: 1;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 12px rgba(255,180,80,0.35));
+        }
+        .welcome-box h1 {
+            margin: 0 0 6px 0;
+            font-size: 30px;
+            font-weight: 700;
+            text-align: center;
+            color: #FFFFFF;
+            letter-spacing: 1px;
+            background: linear-gradient(180deg, #FFE9B0 0%, #E89030 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .welcome-tagline {
+            text-align: center;
+            font-size: 13px;
+            color: #BBB;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 22px;
+        }
+        .welcome-box p {
+            margin: 12px 0;
+            color: #DDD;
+            line-height: 1.75;
+            font-size: 14px;
+            text-align: center;
+        }
+        .welcome-keys {
+            margin: 22px 0 18px;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+        }
+        .welcome-keys .row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 14px;
+            align-items: center;
+            padding: 6px 4px;
+            font-size: 13px;
+            color: #CCC;
+        }
+        .welcome-keys .row + .row {
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+        .welcome-keys .kbd {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-bottom-color: rgba(0,0,0,0.4);
+            border-radius: 6px;
+            color: #FFE9B0;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+            text-align: center;
+            min-width: 36px;
+        }
+        .welcome-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .welcome-foot label {
+            font-size: 12px;
+            color: #999;
+            cursor: pointer;
+        }
+        .welcome-foot label input { margin-right: 6px; }
+        .welcome-foot button {
+            width: auto;
+            padding: 12px 28px;
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            border-radius: 999px;
+            color: #FFF;
+            background: linear-gradient(180deg, #C8401E 0%, #8B2A12 100%);
+            cursor: pointer;
+            text-shadow: none;
+            box-shadow: 0 6px 18px rgba(200,64,30,0.35);
+            letter-spacing: 0.5px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .welcome-foot button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(200,64,30,0.45);
+        }
+        .welcome-foot button:active {
+            transform: translateY(1px);
+        }
+
+        /* ── HUD — модерн нарийхан баар ── */
+        #hud-corner {
+            position: absolute;
+            top: 18px; right: 18px;
+            z-index: 500;
+            background: rgba(20,20,24,0.55);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 999px;
+            padding: 8px 8px 8px 18px;
+            color: #FFF;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.35);
+        }
+        #hud-corner .hud-brand {
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #FFE9B0;
+        }
+        #hud-corner button {
+            margin: 0;
+            padding: 7px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            width: auto;
+            background: linear-gradient(180deg, #C8401E 0%, #8B2A12 100%);
+            color: #FFF;
+            border: none;
+            border-radius: 999px;
+            text-shadow: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+        #hud-corner button:hover {
+            background: linear-gradient(180deg, #E04B26 0%, #A03318 100%);
+            color: #FFF;
+        }
+        #hud-corner button:active {
+            transform: translateY(1px);
+            border: none;
+        }
+
+        /* ── Соёлын мэдээллийн модал — модерн ── */
+        #info-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 15000;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            animation: welcomeFade 0.3s ease-out;
+        }
+        #info-modal.hidden { display: none; }
+        .info-box {
+            background: rgba(20,20,28,0.92);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 18px;
+            padding: 30px 34px 26px;
+            max-width: 600px;
+            width: calc(100% - 40px);
+            max-height: 84vh;
+            overflow-y: auto;
+            color: #EEE;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.55);
+            animation: boxRise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .info-box h2 {
+            margin: 0 0 4px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(180deg, #FFE9B0 0%, #E89030 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-box h2 button {
+            width: 32px; height: 32px;
+            margin: 0; padding: 0;
+            font-size: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: #FFF;
+            border-radius: 50%;
+            cursor: pointer;
+            -webkit-text-fill-color: #FFF;
+        }
+        .info-box h2 button:hover {
+            background: rgba(255,255,255,0.10);
+        }
+        .info-box .info-sub {
+            color: #888;
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .info-box .info-img {
+            font-size: 64px;
+            text-align: center;
+            line-height: 1;
+            margin: 8px 0 18px;
+            filter: drop-shadow(0 4px 12px rgba(255,180,80,0.3));
+        }
+        .info-box p {
+            font-size: 14.5px;
+            line-height: 1.78;
+            margin: 10px 0;
+            color: #DDD;
+        }
+        .info-box .fact {
+            background: rgba(255,213,85,0.06);
+            border-left: 3px solid #E89030;
+            padding: 12px 14px;
+            margin: 14px 0;
+            font-size: 13.5px;
+            line-height: 1.75;
+            color: #DDD;
+            border-radius: 0 8px 8px 0;
+        }
+        .info-box .fact b { color: #FFE9B0; font-weight: 700; }
+
+        /* Хэсэг бүрийн "📖" мэдлэг товчлуур */
+        .info-btn {
+            float: right;
+            width: auto;
+            margin: 0;
+            padding: 3px 10px;
+            font-size: 11px;
+            background: rgba(255,213,85,0.08);
+            border: 1px solid rgba(255,213,85,0.3);
+            border-radius: 6px;
+            color: #FFE9B0;
+            cursor: pointer;
+            font-family: 'Noto Sans', sans-serif;
+            text-shadow: none;
+        }
+        .info-btn:hover {
+            background: rgba(255,213,85,0.18);
+            color: #FFF;
+        }
+
+        @media (max-width: 600px) {
+            .welcome-box { padding: 26px 22px 22px; }
+            .welcome-box h1 { font-size: 24px; }
+            .welcome-keys .row { grid-template-columns: 90px 1fr; font-size: 12px; }
+            #hud-corner { font-size: 11px; padding: 6px 6px 6px 14px; }
+            .info-box { padding: 22px 20px; }
+            .info-box h2 { font-size: 20px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- ───── Дээд баруун булангийн HUD — нарийхан, цэвэр ───── -->
+<div id="hud-corner">
+    <span class="hud-brand">Монгол Гэр</span>
+    <button onclick="openInfo('ger')" data-tip="Монгол гэрийн соёлын тайлбар">Соёл</button>
+</div>
+
+<!-- ───── Мэдлэгийн модал ───── -->
+<div id="info-modal" class="hidden" onclick="if(event.target===this)closeInfo()">
+    <div class="info-box">
+        <h2>
+            <span id="info-title">Гарчиг</span>
+            <button onclick="closeInfo()">✕</button>
+        </h2>
+        <div class="info-img" id="info-icon">⛺</div>
+        <div id="info-body"></div>
+    </div>
+</div>
+
+<!-- ───── Эхний удаагийн заавар ───── -->
+<div id="welcome-overlay">
+    <div class="welcome-box">
+        <div class="crest">⛺</div>
+        <h1>Монгол Гэр</h1>
+        <div class="welcome-tagline">Тал нутгийн өв · Виртуал ертөнц</div>
+
+        <p>Хөвсгөлийн нуурын хөвөөнд буусан монгол гэрийн ертөнцөд тавтай морил.<br>
+        Гэрийн бүтцийг хэсэг хэсгээр нь сурч, тал нутгийн ахуйг өөрөө мэдэрч үзээрэй.</p>
+
+        <div class="welcome-keys">
+            <div class="row"><span class="kbd">WASD</span><span>Тал нутгаар явах</span></div>
+            <div class="row"><span class="kbd">Хулгана</span><span>Эргэж харах</span></div>
+            <div class="row"><span class="kbd">1 / 2 / 3</span><span>Цэсний хэсгүүд</span></div>
+            <div class="row"><span class="kbd">H</span><span>Цэс нуух / гаргах</span></div>
+            <div class="row"><span class="kbd">VR</span><span>Зүүн гарт цэс · Баруун гараар luch чиглүүлж <b>trigger</b> дар · <b>grip</b> нь хаалга</span></div>
+            <div class="row"><span class="kbd">?</span><span>Энэ зааврыг дахин харах</span></div>
+        </div>
+
+        <div class="welcome-foot">
+            <label><input type="checkbox" id="welcome-dontshow"> Дахин харуулахгүй</label>
+            <button onclick="dismissWelcome()">Аялалаа эхлүүлэх →</button>
+        </div>
+    </div>
+</div>
+
+<button id="ui-toggle" onclick="showUI()" title="Цэс нээх (H)">☰ Цэс</button>
+
+<div id="walk-hint" style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+     text-align:center; pointer-events:none;">
+    <span class="kbd">WASD</span> явах &nbsp;·&nbsp;
+    <span class="kbd">Хулгана</span> эргэх &nbsp;·&nbsp;
+    <span class="kbd">ESC</span> гарах
+</div>
+
+<div id="ui-container">
+    <h2>
+        <span>⛏ МОНГОЛ ГЭР</span>
+        <button onclick="hideUI()" data-tip="Цэсийг нуух (H)" title="Нуух">✕</button>
+    </h2>
+
+    <label data-tip="Гэрийн бүх хэсгийг нэг дор нуух/харуулах">
+        <input type="checkbox" id="check-all" checked onchange="handlePartVisibility('all', this.checked)">
+        ▣ Бүгд харуулах
+    </label>
+
+    <!-- ───── ХАНА ───── -->
+    <div class="mc-section" id="sec-khana">
+        <button class="info-btn" onclick="openInfo('khana')" data-tip="Ханын талаарх мэдээлэл">📖</button>
+        ▤ ХАНА
+        <span class="mc-sub">5 ширхэг хана — эвхэгддэг</span>
+    </div>
+
+    <div style="margin-bottom:8px;">
+        <div style="margin-bottom:6px;color:#BBB;font-size:12px;font-weight:500;">Бүх ханыг зэрэг эвхэх / дэлгэх</div>
+        <input type="range" min="10" max="100" value="100"
+               data-tip="Гулсуулж бүх ханыг эвхэх хэмжээг тааруулна"
+               oninput="setAllFold(this.value/100)">
+        <div style="display:flex; gap:6px; margin-top:6px;">
+            <button style="flex:1;margin:0;" data-tip="Бүх ханыг эвхэх" onclick="setAllFold(0.12)">◀ Эвхэх</button>
+            <button style="flex:1;margin:0;" data-tip="Бүх ханыг дэлгэх" onclick="setAllFold(1.0)">Дэлгэх ▶</button>
+        </div>
+    </div>
+
+    <div class="khana-row">
+        <label data-tip="Хойд талын хана"><input type="checkbox" id="check-khana-0" checked onchange="toggleKhana(0)"> 1-р хана · Хойд</label>
+        <button data-tip="Энэ ханыг эвхэх" onclick="foldKhana(0)">◀</button>
+        <button data-tip="Энэ ханыг дэлгэх" onclick="unfoldKhana(0)">▶</button>
+    </div>
+    <div class="khana-row">
+        <label data-tip="Зүүн хойд талын хана"><input type="checkbox" id="check-khana-1" checked onchange="toggleKhana(1)"> 2-р хана · Зүүн хойд</label>
+        <button data-tip="Энэ ханыг эвхэх" onclick="foldKhana(1)">◀</button>
+        <button data-tip="Энэ ханыг дэлгэх" onclick="unfoldKhana(1)">▶</button>
+    </div>
+    <div class="khana-row">
+        <label data-tip="Зүүн урд талын хана"><input type="checkbox" id="check-khana-2" checked onchange="toggleKhana(2)"> 3-р хана · Зүүн урд</label>
+        <button data-tip="Энэ ханыг эвхэх" onclick="foldKhana(2)">◀</button>
+        <button data-tip="Энэ ханыг дэлгэх" onclick="unfoldKhana(2)">▶</button>
+    </div>
+    <div class="khana-row">
+        <label data-tip="Урд талын хана (хаалганы тал)"><input type="checkbox" id="check-khana-3" checked onchange="toggleKhana(3)"> 4-р хана · Урд</label>
+        <button data-tip="Энэ ханыг эвхэх" onclick="foldKhana(3)">◀</button>
+        <button data-tip="Энэ ханыг дэлгэх" onclick="unfoldKhana(3)">▶</button>
+    </div>
+    <div class="khana-row">
+        <label data-tip="Баруун талын хана"><input type="checkbox" id="check-khana-4" checked onchange="toggleKhana(4)"> 5-р хана · Баруун</label>
+        <button data-tip="Энэ ханыг эвхэх" onclick="foldKhana(4)">◀</button>
+        <button data-tip="Энэ ханыг дэлгэх" onclick="unfoldKhana(4)">▶</button>
+    </div>
+
+    <!-- ───── БҮТЦИЙН ХЭСГҮҮД ───── -->
+    <div class="mc-section">
+        <button class="info-btn" onclick="openInfo('struct')" data-tip="Модон хэсгүүдийн талаар">📖</button>
+        ▤ БҮТЦИЙН ХЭСГҮҮД
+        <span class="mc-sub">Гэрийн үндсэн модон хэсэг</span>
+    </div>
+    <label data-tip="Гэрийн үүд хаалгыг харуулах/нуух"><input type="checkbox" id="check-door" checked onchange="handlePartVisibility('door', this.checked)"> 🚪 Хаалга</label>
+    <label data-tip="Тооныг түшсэн хоёр багана"><input type="checkbox" id="check-bagana" checked onchange="handlePartVisibility('bagana', this.checked)"> 🪵 Багана</label>
+    <label data-tip="Дээврийн дугуй цоорхой — тооно"><input type="checkbox" id="check-toono" checked onchange="handlePartVisibility('toono', this.checked)"> ☀ Тооно</label>
+    <label data-tip="Тооноос ханы орой руу татсан гишгүүр модод"><input type="checkbox" id="check-un" checked onchange="handlePartVisibility('un', this.checked)"> ╱ Унь</label>
+    <label data-tip="Гэрийн дээврийн бүрхэвч"><input type="checkbox" id="check-roof" checked onchange="handlePartVisibility('roof', this.checked)"> 🏠 Дээвэр</label>
+
+    <!-- ───── ТУУРГА ───── -->
+    <div class="mc-section">
+        ▤ ТУУРГА
+        <span class="mc-sub">Гэрийг хүрээлсэн эсгий бүрхэвч</span>
+    </div>
+    <div class="grid-2">
+        <label data-tip="Туурганы гадна давхарга"><input type="checkbox" id="check-tuurga-1" checked onchange="handlePartVisibility('tuurga-1', this.checked)"> Гадна туурга</label>
+        <label data-tip="Туурганы дотоод давхарга"><input type="checkbox" id="check-tuurga-2" checked onchange="handlePartVisibility('tuurga-2', this.checked)"> Дотор туурга</label>
+    </div>
+
+    <!-- ───── БҮСЛҮҮР ───── -->
+    <div class="mc-section">
+        ▤ БҮСЛҮҮР
+        <span class="mc-sub">Гэрийг бэхлэх дээс/бүс</span>
+    </div>
+    <div class="grid-3">
+        <label data-tip="Доод бүслүүр"><input type="checkbox" id="check-bvsluur-1" checked onchange="handlePartVisibility('bvsluur-1', this.checked)"> Доод бүс</label>
+        <label data-tip="Дунд бүслүүр"><input type="checkbox" id="check-bvsluur-2" checked onchange="handlePartVisibility('bvsluur-2', this.checked)"> Дунд бүс</label>
+        <label data-tip="Дээд бүслүүр"><input type="checkbox" id="check-bvsluur-3" checked onchange="handlePartVisibility('bvsluur-3', this.checked)"> Дээд бүс</label>
+    </div>
+
+    <!-- ───── ҮЙЛДЭЛ ───── -->
+    <div class="mc-section" id="sec-action">
+        ▶ ҮЙЛДЭЛ
+        <span class="mc-sub">Гэрийг угсрах ба удирдах</span>
+    </div>
+    <button class="mc-blue" data-tip="Гэрийг хэсэг хэсгээр нь дараалан угсарна" onclick="buildGer()">⚒ Гэр барих</button>
+    <button data-tip="Гэрийг автоматаар эргүүлэх" onclick="toggleRotation()">↻ Эргүүлэх</button>
+    <button data-tip="Камерыг анхны байрлалд нь буцаах" onclick="resetView()">⌂ Буцах</button>
+
+    <div class="grid-2">
+        <button data-tip="Хаалгыг нээх" onclick="openDoor()">🚪 Нээх</button>
+        <button data-tip="Хаалгыг хаах" onclick="closeDoor()">🚪 Хаах</button>
+    </div>
+
+    <button class="mc-green" data-tip="WASD-ээр гэрийн гадуур явах горимд орох" onclick="walkOutside()">🌿 Гадаа явах</button>
+    <button class="mc-green" data-tip="Гэрийн дотор ороод үзэх" onclick="enterGer()">⛺ Дотор орох</button>
+    <button class="mc-red" data-tip="Явах горимоос гарах (ESC)" onclick="exitGer()">← Гарах</button>
+
+    <!-- ───── ЦАГ АГААР ───── -->
+    <div class="mc-section" id="sec-weather">
+        🌤 ЦАГ АГААР
+        <span class="mc-sub">Орчны гэрэлтүүлэг ба тунадас</span>
+    </div>
+    <button id="btn-daynight" class="mc-night" data-tip="Өдөр / шөнө солих" onclick="toggleDayNight()">🌙 Шөнө</button>
+    <button id="btn-autocycle" class="mc-night" data-tip="Цагийг автоматаар эргүүлэх (2 мин = 1 өдөр)" onclick="toggleAutoCycle()">🕐 Auto цаг</button>
+    <div class="grid-2">
+        <button id="btn-rain" class="mc-rain" data-tip="Бороотой болгох" onclick="toggleRain()">🌧 Бороо</button>
+        <button id="btn-snow" class="mc-snow" data-tip="Цастай болгох" onclick="toggleSnow()">❄ Цас</button>
+    </div>
+    <button id="btn-fog" class="mc-fog" data-tip="Мананг асаах/унтраах" onclick="toggleFog()">🌫 Манан</button>
+    <button id="btn-winter" class="mc-winter" data-tip="Өвлийн горим — цас, дээврийн цас, тоононоос утаа, сэрүүн тэнгэр" onclick="toggleWinter()">🌨 Өвөл</button>
+    <button id="btn-sound" class="mc-sound" data-tip="Салхи, гал, шувуу, морь, морин хуурын дуу" onclick="toggleSound()">🔇 Дуу</button>
+    <button id="btn-learn" class="mc-learn" data-tip="Дүрс дээр дарж тайлбар харах (гэр, хүн, мал)" onclick="toggleLearnMode()">🎓 Суралцах</button>
+    <button id="btn-naadam" class="mc-naadam" data-tip="Эрийн гурван наадам — бөх, морин уралдаан, сур харвах" onclick="toggleNaadam()">🏇 Наадам</button>
+
+    <!-- ───── Гарын товчлуурын зөвлөмж ───── -->
+    <div class="mc-keys">
+        <span class="kbd">1</span> Хана &nbsp;
+        <span class="kbd">2</span> Үйлдэл &nbsp;
+        <span class="kbd">3</span> Цаг агаар
+        <br>
+        <span class="kbd">H</span> Цэс нуух &nbsp;
+        <span class="kbd">M</span> Дуу &nbsp;
+        <span class="kbd">L</span> Суралцах &nbsp;
+        <span class="kbd">P</span> Наадам &nbsp;
+        <span class="kbd">C</span> Өвөл &nbsp;
+        <span class="kbd">?</span> Тусламж
+    </div>
+</div>
+
+<!-- Vite өөрийн module resolver ашигладаг тул importmap хэрэггүй -->
+<script type="module" src="/main.js"></script>
+<script>
+const WELCOME_KEY = 'mongolger.welcomed';
+
+function hideUI() {
+    document.getElementById('ui-container').style.display = 'none';
+    document.getElementById('ui-toggle').style.display = 'block';
+}
+function showUI() {
+    document.getElementById('ui-container').style.display = '';
+    document.getElementById('ui-toggle').style.display = 'none';
+}
+function toggleUI() {
+    const ui = document.getElementById('ui-container');
+    if (ui.style.display === 'none') showUI(); else hideUI();
+}
+
+function showWelcome() {
+    document.getElementById('welcome-overlay').classList.remove('hidden');
+}
+function dismissWelcome() {
+    document.getElementById('welcome-overlay').classList.add('hidden');
+    if (document.getElementById('welcome-dontshow').checked) {
+        try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    let seen = false;
+    try { seen = localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) {}
+    if (seen) {
+        document.getElementById('welcome-overlay').classList.add('hidden');
+    }
+});
+
+function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ui = document.getElementById('ui-container');
+    if (ui.style.display === 'none') showUI();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    switch (e.key) {
+        case '1': scrollToSection('sec-khana');  break;
+        case '2': scrollToSection('sec-action'); break;
+        case '3': scrollToSection('sec-weather');break;
+        case 'h': case 'H': toggleUI(); break;
+        case 'm': case 'M': if (window.toggleSound) window.toggleSound(); break;
+        case 'l': case 'L': if (window.toggleLearnMode) window.toggleLearnMode(); break;
+        case 'p': case 'P': if (window.toggleNaadam) window.toggleNaadam(); break;
+        case 'c': case 'C': if (window.toggleWinter) window.toggleWinter(); break;
+        case '?': showWelcome(); break;
+        case 'Escape': closeInfo(); break;
+    }
+});
+
+// ─── Соёлын мэдээллийн агуулга ───
+const INFO_DATA = {
+    ger: {
+        icon: '⛺', title: 'Монгол гэр',
+        sub: 'Нүүдэлчдийн мэргэн ухаан',
+        body: `<p>Монгол гэр гэдэг бол гурван мянга гаруй жилийн настай, нүүдэлчдийн ухаанаар бүтсэн зөөдөг орон сууц юм. Хур бороо, цас, хүйтэн жавар, халуун наран — бүхий л цаг агаарт зохицсон.</p>
+<div class="fact"><b>Хурдан угсралт:</b> Туршлагатай гэр бүл нь 1 цаг хүрэхгүй хугацаанд гэрээ дэлгэн босгож, мөн адил буулгана.</div>
+<p>Гэр нь зөвхөн орон сууц биш, монголчуудын ертөнцийг үзэх үзэл, шашин шүтлэг, ёс заншлын төв юм. Хаалга нь үргэлж урагшаа (өмнөтгөл) хардаг.</p>`
+    },
+    khana: {
+        icon: '▤', title: 'Хана',
+        sub: 'Гэрийн уян хатан хэлхээ',
+        body: `<p>Хана нь модон тор хэлбэртэй, хайч шиг эвхэгддэг хэсэг. Энэ онцлог нь гэрийг бүхэлд нь зөөвөрлөх боломжтой болгодог.</p>
+<div class="fact"><b>Гэрийн хэмжээ:</b> 4 ханатай гэр (бага гэр), 5 ханатай гэр (ердийн), 6-12 ханатай гэр (том гэр) гэж ялгана. Хана олшрох тусам гэр томрохын зэрэгцээ ашигладаг хүний тоо нэмэгдэнэ.</div>
+<p>Энэ виртуал ертөнцөд 5 хана дэлгэгдсэн байна. Та хана тус бүрийг дангаар нь эвхэж, гэрийн доторх угсралтыг ажиглаарай.</p>`
+    },
+    struct: {
+        icon: '🪵', title: 'Гэрийн модон бүтэц',
+        sub: 'Тооно · Унь · Багана · Хаалга',
+        body: `<p><b>Тооно</b> — дээврийн дугуй нүх. Үүгээр гэр дотор гэрэл, цэвэр агаар орж, утаа гарна. Бөмбгөр хэлбэртэй, чимэглэлтэй.</p>
+<p><b>Унь</b> — тооноос ханы орой руу татсан 50-60 ширхэг шулуун мод. Дээврийн хэв гажилтыг даадаг.</p>
+<p><b>Багана</b> — тооныг түшиж буй хоёр модон багана. Том гэрт ашиглана.</p>
+<p><b>Хаалга</b> — урдаа эсвэл зүүн өмнө зүгт харсан, чимэглэлтэй модон үүд.</p>
+<div class="fact"><b>Бэлгэдэл:</b> Тооно нь огторгуйн нүд, унь нь нарны туяа, багана нь дэлхий ба огторгуйг холбосон тэнхлэгийг бэлгэддэг.</div>`
+    },
+    toono: {
+        icon: '☀', title: 'Тооно',
+        sub: 'Огторгуйн нүд — дээврийн дугуй цоорхой',
+        body: `<p>Тооно бол гэрийн дээвэрт байрлах том дугуй мод — гэр бүхэлдээ үүгээр амьсгалдаг. Гэрлийн туяа, тунгалаг агаар, гал зуухны утаа энд дамжуулагдана.</p>
+<div class="fact"><b>Соёлын утга:</b> Тооно нь "огторгуйн нүд" гэгддэг. Монголчууд дээш харахдаа тэнгэртэй ярилцах бэлэг тэмдэг гэж үздэг.</div>
+<p>Тооны гадна тал хээтэй сийлбэртэй байх нь элбэг. Бороо орвол бөсөөр бүрхэж, халуунд нээлттэй үлдээнэ.</p>`
+    },
+    un: {
+        icon: '╱', title: 'Унь',
+        sub: 'Нарны туяа — 50-60 ширхэг шулуун мод',
+        body: `<p>Унь гэдэг бол тооноос ханы орой хүртэл татсан шулуун модод. Нэг гэрт 50-60 ширхэг унь байдаг. Дээврийн жинг хуваарилж, хэлбэрийг тогтвортой байлгана.</p>
+<div class="fact"><b>Нарны туяаны бэлгэдэл:</b> Дугуй тоонооос ханын зүг тарсан унь бол "нарны туяа". Хөнгөн мөртлөө бат бөх, тэр нь лиственницээс голдуу хийгдэнэ.</div>`
+    },
+    bagana: {
+        icon: '🪵', title: 'Багана',
+        sub: 'Тооныг түшсэн хос багана',
+        body: `<p>Багана нь том гэрт (8+ ханатай) тоонын жинг дагалдах хоёр модон багана. Дэлхий ба огторгуйг холбосон тэнхлэгийн бэлгэдэл.</p>
+<div class="fact"><b>Ёс заншил:</b> Багана хооронд гишгэж өнгөрөх, хавсарч суух нь бэлгэдлээр эш дагаж цээрлэдэг уламжлалтай. Хоёр багана хоорондын гарц нь сүнс ба ёс заншлын "хилийн зурвас" гэж үздэг.</div>`
+    },
+    door: {
+        icon: '🚪', title: 'Хаалга',
+        sub: 'Үргэлж урагшаа харсан модон үүд',
+        body: `<p>Монгол гэрийн хаалга нь үргэлж урагшаа (өмнө зүгт) харсан байдаг. Уг нь салхи, бороо эсрэг тэсвэртэй, чимэглэлтэй модоор урладаг.</p>
+<div class="fact"><b>Ёс:</b> Хаалга бол гэр бүлийн нэр хүндийн бэлгэдэл. Босготой, түүнийг гишгэж орохыг цээрлэдэг. Дээд талаас нь толгойг бөхийлгөнө.</div>`
+    },
+    tuurga: {
+        icon: '▦', title: 'Туурга',
+        sub: 'Гэрийн ханыг бүрхэх эсгий / бөс',
+        body: `<p>Туурга бол ханыг гаднаас нь бүрхсэн эсгийн (зуны үед) эсвэл ноосон эсгийн (өвлийн үед) давхарга. Гадна ба дотор гэж 2 давхаргаар бүрхэнэ.</p>
+<div class="fact"><b>Шинжлэх ухаан:</b> Эсгий маш сайн дулаан тусгаарлагч — -40°C-д дулаан, +30°C-д сэрүүн байлгана. Байгалийн агааржуулалттай.</div>`
+    },
+    bvsluur: {
+        icon: '═', title: 'Бүслүүр',
+        sub: 'Гурван давхар нэхсэн оосор',
+        body: `<p>Бүслүүр нь туурга, дээвэр, ханыг нэг дор барих хорон оосор. Дээд, дунд, доод гэсэн 3 давхаргаар хавчруулж боодог.</p>
+<div class="fact"><b>Уран нэхмэл:</b> Бүслүүрийг голдуу хонь, тэмээний ноосоор гараар нэхэж, хээ угалз оруулсан байна. Гэрийн хэмжээнээс хамаарч 40-60 м урттай.</div>`
+    },
+    roof: {
+        icon: '🏠', title: 'Дээвэр',
+        sub: 'Гэрийн оройн бүрхэвч',
+        body: `<p>Дээвэр гэдэг нь унь ба тоонын дээр бүрсэн эсгий+бөс давхаргууд. Бороо, цас, нарнаас хамгаална.</p>
+<p>Шар, цагаан, цэнхэр өнгийн бөсийг ашиглах нь олонтаа — нар, тэнгэр, сүү/сүрлэгийн бэлгэдэл.</p>`
+    },
+    furniture: {
+        icon: '🏮', title: 'Гэрийн тавилга',
+        sub: 'Ор · Шүтээн · Авдар · Ширээ',
+        body: `<p>Гэрийн дотор талбай нь дараах дүрмээр хуваагдана:</p>
+<p><b>Хойморь</b> (хойд зүг) — шүтээн, хамгийн хүндэтгэлтэй газар.</p>
+<p><b>Баруун тал</b> — эрэгтэйчүүд, морин эмээл, уяа.</p>
+<p><b>Зүүн тал</b> — эмэгтэйчүүд, гал тогоо, сүүний сав.</p>
+<p><b>Зуух</b> — гал зуухтай төв цэг.</p>
+<div class="fact"><b>Орны байрлал:</b> Гэрийн эзэгтэйн ор нь зүүн хойд, харин эзний ор баруун хойд талд байрлана.</div>`
+    },
+    hearth: {
+        icon: '🔥', title: 'Гал зуух',
+        sub: 'Гэрийн зүрх · Голомт',
+        body: `<p>Гал зуух (голомт) бол гэрийн яг төв цэгт байрлах гал түлдэг зуух. Хоол хийх, дулаацах, ариусгах бүх үйлдэл энд хийгдэнэ.</p>
+<div class="fact"><b>Ариун бэлгэдэл:</b> Гал бол гэр бүлийн "тэнгэр шүтлэг"-ийн хамгийн ариун зүйл. Голомтоор утга гишгэх, хог хаях нь хатуу цээртэй.</div>
+<p>Галыг унтраахгүй байх, цагаан сарын өдөр сайн гал түлэх зэрэг олон ёс заншил үүнтэй холбоотой.</p>`
+    },
+    person: {
+        icon: '👤', title: 'Гэрийн эзэн',
+        sub: 'Дээл, малгай, бүс, гутал',
+        body: `<p>Монгол дээл нь өвөл, зуны улиралд тохирсон, богино ба урт ханцуйтай, баруун тийш хавтасласан үндсэн хувцас.</p>
+<p><b>Бүс</b> — алтан шар торгон бүсийг дээлээ бэхлэхийн сацуу бэлгэдэл (эрэгтэйчүүд хүнд, эмэгтэйчүүд нарийхан).</p>
+<p><b>Малгай</b> — конус хэлбэртэй, лу/улаан өнгөт, орой дээр алтан зуун бөмбөлөг.</p>
+<p><b>Гутал</b> — хамар нь сугарч дээш харсан — "эх газрыг өвтгөхгүйн тулд" гэсэн бэлгэдэл.</p>`
+    },
+    churn: {
+        icon: '🥛', title: 'Бүлэх — айраг бүлэх',
+        sub: 'Гүүний сүүг исгэж цутгаан бүлнэ',
+        body: `<p>Айраг бол гүүний исгэсэн сүү. Гэрийн эзэгтэй эсвэл бүсгүй өдөрт олон мянган удаа бүлээлхийн шонг доошлуулж, дээш өргөнө.</p>
+<div class="fact"><b>Тоо баримт:</b> 1 л айрагт 6000-10000 удаагийн бүлээлт шаардагдана. Их бүлнэ = амт сайн, амьсгалах чадвартай.</div>
+<p>Сүүний хүчил (лактик) исгэх үед лактозыг задлан, содтой, жаахан спирттэй (1-2%) эрүүл ундаа болгодог.</p>`
+    },
+    saw: {
+        icon: '🪚', title: 'Түлээ хөрөөдөх',
+        sub: 'Өвлийн бэлтгэл — мод бэлтгэх',
+        body: `<p>Монгол өвөл -30°C хүрэх ба түлээ бол амьдралын үндэс. Нүүдэлчид намар, өвлийн эхээр мод хайж, хөрөөгөөр богино хэрчим болгож өрнө.</p>
+<div class="fact"><b>Хэмжил:</b> Нэг гэр өвөл ≈ 3-5 м³ түлээ хэрэглэнэ. Ихэвчлэн хайлаас, нарс ашиглана.</div>`
+    },
+    milk: {
+        icon: '🐄', title: 'Сүү саах',
+        sub: 'Өдөр бүрийн цагаан хоолны үндэс',
+        body: `<p>Үхэр, гүү, ямаа, хонь, тэмээ — монголчууд "таван хошуу мал" бүгдийг сааж, 30+ төрлийн цагаан идээ (ааруул, бяслаг, тараг, ээзгий, өрөм гэх мэт) үйлдвэрлэнэ.</p>
+<div class="fact"><b>Цагаан идээ:</b> Зуны улиралд гол хоол. Нэг үхрээс өдөрт 4-8 л сүү авна.</div>`
+    },
+    tieHorse: {
+        icon: '🐴', title: 'Морь уях',
+        sub: 'Уяа · Уурга · Морин эмээл',
+        body: `<p>Морь бол монгол эрийн хос далавч. Өвгөн, залуу хэн ч өглөө бүр мориныхоо уяа шалгаж, эмээлээ бэлдэнэ.</p>
+<div class="fact"><b>Уурга:</b> 4-6 м урт шилбэтэй, үзүүрт нь урт утас (циркль) уясан багаж. Уяагүй морийг зайнаас барихад хэрэглэнэ.</div>`
+    },
+    child: {
+        icon: '🧒', title: 'Хүүхэд ба хурга',
+        sub: 'Хурга хөөх — хөдөлгөөнт эгэл тоглоом',
+        body: `<p>Монгол хүүхэд бага наснаасаа мал амьтны хэлтэй болно. Хурга хөөж барьж, ямаа тэврэх нь зүгээр тоглоом бус, эхний малын сургалт.</p>
+<p>5-6 настайгаасаа тугалаа хариулж, 10 нас хүрэхэд бүтэн сүргийг дагуулдаг — монголчуудын "10 настай малчин" гэсэн хэллэг ингэж үүссэн.</p>`
+    },
+    horse: {
+        icon: '🐎', title: 'Морь',
+        sub: 'Нүүдэлчдийн хос далавч',
+        body: `<p>Монгол морь бол олон зуун жилийн сонголтоор бэхэжсэн бага биетэй, хүйтэнд тэсвэртэй үүлдэр. Жилийн дөрвөн улиралд задгай бэлчиж, -40°C-д өвөлждөг.</p>
+<div class="fact"><b>Тоо:</b> Монголд 4 сая орчим морь, хүн амын толгой дундажаас илүү. Чингис хааны цэргийн гол хүч мөн байв.</div>`
+    },
+    cow: {
+        icon: '🐄', title: 'Үхэр',
+        sub: 'Сүү · Үс · Мах',
+        body: `<p>Үхэр нь сүү, бяслаг, мах, арьс нийлүүлнэ. Монгол үхэр жижиг биетэй боловч түүний сүү өөх тосоор баялаг, ааруул хийхэд тохиромжтой.</p>`
+    },
+    camel: {
+        icon: '🐪', title: 'Тэмээ',
+        sub: 'Говийн "хөлөг онгоц"',
+        body: `<p>Хоёр бөхт тэмээ — монгол тэмээний онцлог. 7-10 хоног усгүй тэсэх, 300-400 кг ачаа зөөх чадвартай.</p>
+<div class="fact"><b>Бөх:</b> Хөх чинж тэжээлийн агуулах. Ундарга бус өөх тос — тэр нь тэмээг усгүй зуун хоног тэсвэрлэх боломж олгоно.</div>`
+    },
+    sheep: {
+        icon: '🐑', title: 'Хонь',
+        sub: 'Таван хошуу малын тулгуур',
+        body: `<p>Хонь — махны гол гол эх үүсвэр. Монголд 30 сая гаруй хонь байдаг. Өөх, мах, ноос, арьс бүгд ашиглагдана.</p>`
+    },
+    goat: {
+        icon: '🐐', title: 'Ямаа',
+        sub: 'Ноолуураар алдартай мал',
+        body: `<p>Ямаа нь Монголын эдийн засгийн гол махгүй бүтээгдэхүүн — ноолуур нийлүүлнэ. Монгол ноолуур дэлхийд чанарын шилдэг гэж тооцогдоно.</p>`
+    },
+    winter: {
+        icon: '🌨', title: 'Монгол өвөл',
+        sub: 'Хүйтэн жавартай · −40°C хүрнэ',
+        body: `<p>Монголын өвөл хатуу ширүүн — 5-6 сар үргэлжилнэ. Гэр нь модон туурга, нэхий эсгий, ширдэгээр хөндлөн дулаалагдана.</p>
+<p><b>Дэвсгэр:</b> Хол ойгүй тал нутаг цасаар бүрхэгдэнэ.<br>
+<b>Дээвэр:</b> Нэхий эсгий + дээр нь цас — нэмэлт дулаалга.<br>
+<b>Тооноос гарах утаа:</b> Аргал (үхэр, хонины баас)-ны гал түлэх. Утаа нь өвлийн хүйтэнд гэрийн дотор дулаан байгааг илтгэнэ.</p>
+<div class="fact"><b>Зуд:</b> Онц хүйтэн өвөл — мал бөөнөөрөө үхэж, малчдын гол сорилт болдог. 2009-2010 оны зуд-ийн улмаас 8 сая гаруй мал үхсэн.</div>`
+    },
+};
+
+function openInfo(key) {
+    const data = INFO_DATA[key];
+    if (!data) return;
+    document.getElementById('info-icon').textContent = data.icon;
+    document.getElementById('info-title').textContent = data.title;
+    document.getElementById('info-body').innerHTML =
+        `<div class="info-sub">${data.sub}</div>${data.body}`;
+    document.getElementById('info-modal').classList.remove('hidden');
+}
+function closeInfo() {
+    document.getElementById('info-modal').classList.add('hidden');
+}
+
+window.addEventListener('error', e => {
+    const d = document.getElementById('err-box') || Object.assign(document.createElement('div'), {
+        id:'err-box', style:'position:fixed;bottom:0;left:0;right:0;background:#c00;color:#fff;padding:10px;font-size:13px;z-index:9999;white-space:pre-wrap;max-height:40vh;overflow:auto;'
+    });
+    document.body.appendChild(d);
+    d.textContent += (e.message || e) + '\n';
+});
+window.addEventListener('unhandledrejection', e => {
+    const d = document.getElementById('err-box') || Object.assign(document.createElement('div'), {
+        id:'err-box', style:'position:fixed;bottom:0;left:0;right:0;background:#c00;color:#fff;padding:10px;font-size:13px;z-index:9999;white-space:pre-wrap;max-height:40vh;overflow:auto;'
+    });
+    document.body.appendChild(d);
+    d.textContent += (e.reason || e) + '\n';
+});
+</script>
+
+</body>
+</html>
