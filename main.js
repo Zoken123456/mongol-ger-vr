@@ -965,12 +965,26 @@ const _vrMenuMesh = new THREE.Mesh(
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
-// Зүүн гарын дээд талд хэвтээ налуугаар тавина
-_vrMenuMesh.position.set(0.03, 0.06, -0.22);
-_vrMenuMesh.rotation.x = -Math.PI / 2.6;
-_vrMenuMesh.rotation.y = 0.2;
+// Цэсийг толгой дагасан group-д байршуулна — харааны талбарын баруун талд,
+// хаана ч очсон тогтмол харагдана.
+const _vrMenuGroup = new THREE.Group();
+_vrMenuMesh.position.set(0.42, -0.08, -0.62);  // баруун талд, бага зэрэг доош, 62см өмнө
+_vrMenuMesh.rotation.y = -0.55;                 // камер руу нүдээ харуулж налуулна
+_vrMenuGroup.add(_vrMenuMesh);
+scene.add(_vrMenuGroup);
 _vrMenuMesh.visible = false;
-_vrCtrl[0].ctrl.add(_vrMenuMesh);
+
+// Цэсийн group-ийг VR камерын дагуу кадр тутамд дагуулна
+const _vrCamPos = new THREE.Vector3();
+const _vrCamQuat = new THREE.Quaternion();
+function _tickVRMenuHeadLock() {
+    if (!renderer.xr.isPresenting) return;
+    const xrCam = renderer.xr.getCamera();
+    xrCam.getWorldPosition(_vrCamPos);
+    xrCam.getWorldQuaternion(_vrCamQuat);
+    _vrMenuGroup.position.copy(_vrCamPos);
+    _vrMenuGroup.quaternion.copy(_vrCamQuat);
+}
 
 let _vrHoverIdx = -1;
 let _vrFlashIdx = -1;
@@ -1094,10 +1108,9 @@ function _tickVRControllers() {
         _vrDir.set(0, 0, -1).applyQuaternion(_vrQuat);
         _vrRay.set(_vrOrigin, _vrDir);
 
-        // 1) Эхлээд цэстэй огтлолцож байгаа эсэхийг шалгана
-        //    (зүүн гар өөрийн цэстэй огтлолцдоггүй — тиймээс баруун гар л цэстэй ажиллана)
+        // 1) Эхлээд цэстэй огтлолцож байгаа эсэхийг шалгана — аль ч гараар дарж болно
         let hitMenu = false;
-        if (idx !== 0 && _vrMenuMesh.visible) {
+        if (_vrMenuMesh.visible) {
             const mh = _vrRay.intersectObject(_vrMenuMesh);
             if (mh.length > 0 && mh[0].uv) {
                 const uv = mh[0].uv;
@@ -3864,6 +3877,7 @@ renderer.setAnimationLoop((timestamp) => {
     if (window._tickLake) window._tickLake(delta);
     _tickSmoke(delta);
     if (isRotating) ger.getObject3D().rotation.y += delta * 0.3;
+    _tickVRMenuHeadLock();
     _tickVRControllers();
 
     if (isWalking && walkControls.isLocked) {
