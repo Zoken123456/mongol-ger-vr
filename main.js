@@ -965,11 +965,11 @@ const _vrMenuMesh = new THREE.Mesh(
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
-// Цэсийг толгой дагасан group-д байршуулна — харааны талбарын баруун талд,
+// Цэсийг толгой дагасан group-д байршуулна — харааны талбарын төв хэсэгт,
 // хаана ч очсон тогтмол харагдана.
 const _vrMenuGroup = new THREE.Group();
-_vrMenuMesh.position.set(0.42, -0.08, -0.62);  // баруун талд, бага зэрэг доош, 62см өмнө
-_vrMenuMesh.rotation.y = -0.55;                 // камер руу нүдээ харуулж налуулна
+_vrMenuMesh.position.set(0, -0.10, -0.65);      // голд, бага зэрэг доош, 65см өмнө
+_vrMenuMesh.rotation.y = 0;                     // шууд камер руу харуулна
 _vrMenuGroup.add(_vrMenuMesh);
 scene.add(_vrMenuGroup);
 _vrMenuMesh.visible = false;
