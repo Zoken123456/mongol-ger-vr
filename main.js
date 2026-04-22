@@ -969,11 +969,11 @@ const _vrMenuButtons = [
     { label: 'AUTO ЦАГ',    color: '#1E1E4E', action: () => window.toggleAutoCycle() },
     { label: 'БОРОО',       color: '#1A3E5E', action: () => window.toggleRain() },
     { label: 'ЦАС',         color: '#3A5A7A', action: () => window.toggleSnow() },
-    // Row 10 — Цаг агаар (2) + Дуу
+    // Row 10 — Цаг агаар (2) + Дуу + Нүүх
     { label: 'МАНАН',       color: '#3A3A4A', action: () => window.toggleFog() },
     { label: 'ӨВӨЛ',        color: '#2E5E8A', action: () => window.toggleWinter() },
     { label: 'ДУУ',         color: '#4A2A5E', action: () => window.toggleSound() },
-    { label: '',            color: '#2A2A2A', action: () => {} },
+    { label: 'НҮҮХ',        color: '#8A4A1A', action: () => window.toggleMigration() },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -3925,6 +3925,7 @@ renderer.setAnimationLoop((timestamp) => {
     _pollVRMenuToggle();
     _tickVRMenuHeadLock();
     _tickVRControllers();
+    if (window._tickExtras) window._tickExtras(delta);
 
     if (isWalking && walkControls.isLocked) {
         const speed = 4;
@@ -4561,3 +4562,377 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
 });
+
+// ══════════════════════════════════════════════════════════════════
+// БҮРГЭД — тэнгэрт тойрч ниснэ
+// ══════════════════════════════════════════════════════════════════
+function createEagle() {
+    const g = new THREE.Group();
+    const body = new THREE.MeshStandardMaterial({ color: 0x3A2410, roughness: 0.85 });
+    const head = new THREE.MeshStandardMaterial({ color: 0xE8D8A0, roughness: 0.8  });
+    const beak = new THREE.MeshStandardMaterial({ color: 0xF4B030, roughness: 0.6  });
+
+    // Бие
+    const torso = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), body);
+    torso.scale.set(1.4, 0.7, 0.9);
+    g.add(torso);
+
+    // Толгой (цагаан толгой — Хайрцаг бүргэд)
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), head);
+    hd.position.set(0.85, 0.15, 0);
+    g.add(hd);
+
+    // Хушуу
+    const bk = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.28, 6), beak);
+    bk.rotation.z = -Math.PI / 2;
+    bk.position.set(1.18, 0.08, 0);
+    g.add(bk);
+
+    // Сүүл
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.5), body);
+    tail.position.set(-0.85, 0, 0);
+    g.add(tail);
+
+    // Далавчнууд — тусдаа pivot group-тай
+    const wingL = new THREE.Group(); wingL.position.set(0, 0.1, 0.45);
+    const wingR = new THREE.Group(); wingR.position.set(0, 0.1, -0.45);
+    const wmat  = new THREE.MeshStandardMaterial({ color: 0x2A1808, roughness: 0.88, side: THREE.DoubleSide });
+    [wingL, wingR].forEach(w => {
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 1.6), wmat);
+        wing.position.set(-0.1, 0, w === wingL ? 0.8 : -0.8);
+        w.add(wing);
+        g.add(w);
+    });
+
+    g.userData.wingL = wingL;
+    g.userData.wingR = wingR;
+    g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    return g;
+}
+
+const _eagle = createEagle();
+scene.add(_eagle);
+
+function _tickEagle(t) {
+    // Гэрээс 40м радиустай, өндөр 16-20м-д дугуйрч нисэх
+    const r  = 40, yBase = 17, ySway = 1.8;
+    const a  = t * 0.18; // өнцгийн хурд
+    const x  = Math.cos(a) * r;
+    const z  = Math.sin(a) * r;
+    const y  = yBase + Math.sin(t * 0.5) * ySway;
+    _eagle.position.set(x, y, z);
+    // Урагшаа харна (tangent)
+    _eagle.rotation.y = -a + Math.PI / 2;
+    // Чулуу дагалдах бага зэргийн налалт (банк)
+    _eagle.rotation.x = Math.sin(t * 0.5) * 0.1;
+    _eagle.rotation.z = -0.22; // дугуйруулна
+    // Далавчны цохилт
+    const flap = Math.sin(t * 4.5) * 0.6;
+    _eagle.userData.wingL.rotation.x =  flap;
+    _eagle.userData.wingR.rotation.x = -flap;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// НОХОЙ — гэрийн харгалзагч
+// ══════════════════════════════════════════════════════════════════
+function createDog(x, z, rotY = 0) {
+    const g    = new THREE.Group();
+    const coat = new THREE.MeshStandardMaterial({ color: 0x3A2A18, roughness: 0.9 });
+    const belly= new THREE.MeshStandardMaterial({ color: 0xD8B080, roughness: 0.9 });
+    const drk  = new THREE.MeshStandardMaterial({ color: 0x1A0E04, roughness: 0.88 });
+
+    // Бие
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.34, 0.36), coat);
+    body.position.set(0, 0.48, 0); g.add(body);
+    // Доод цагаан
+    const bel = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.1, 0.3), belly);
+    bel.position.set(0, 0.36, 0); g.add(bel);
+
+    // Хүзүү
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.24, 0.24), coat);
+    neck.position.set(0.35, 0.62, 0); g.add(neck);
+
+    // Толгой (анимацид ашиглана)
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0.45, 0.72, 0);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 0.26), coat);
+    head.position.set(0.1, 0, 0);
+    headPivot.add(head);
+    // Хушуу
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.16), belly);
+    snout.position.set(0.28, -0.03, 0);
+    headPivot.add(snout);
+    // Хамар
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.08), drk);
+    nose.position.set(0.37, 0, 0);
+    headPivot.add(nose);
+    // Чих × 2
+    [-0.11, 0.11].forEach(ez => {
+        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 4), coat);
+        ear.position.set(0.06, 0.16, ez);
+        headPivot.add(ear);
+    });
+    g.add(headPivot);
+
+    // Хөлүүд — урд/хойд тус бүр 2
+    const legs = [];
+    [[-0.26, -0.14], [-0.26, 0.14], [0.22, -0.14], [0.22, 0.14]].forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), coat);
+        leg.position.set(lx, 0.16, lz);
+        g.add(leg);
+        legs.push(leg);
+    });
+
+    // Сүүл — pivot-тай (сэгсрэх)
+    const tailPivot = new THREE.Group();
+    tailPivot.position.set(-0.38, 0.52, 0);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.08), coat);
+    tail.position.set(-0.08, 0.06, 0);
+    tailPivot.add(tail);
+    tailPivot.rotation.z = 0.6;
+    g.add(tailPivot);
+
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+
+    g.userData.headPivot = headPivot;
+    g.userData.tailPivot = tailPivot;
+    g.userData.legs      = legs;
+    g.userData.basePos   = new THREE.Vector3(x, 0, z);
+    g.userData.isSitting = true;  // эхэндээ сууж байна
+    g.userData.barkUntil = 0;
+    g.userData.nextBark  = 3 + Math.random() * 6;
+    return g;
+}
+
+const _dog = createDog(3.5, 2.8, -Math.PI / 2);
+scene.add(_dog);
+
+function _tickDog(t, dt) {
+    const ud = _dog.userData;
+    // Хэрэглэгч хэр ойрхон байна
+    const camWorld = new THREE.Vector3();
+    (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(camWorld);
+    const dx = camWorld.x - _dog.position.x;
+    const dz = camWorld.z - _dog.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    const nearby = dist < 8;
+
+    // Сууж буй ↔ зогсож буй шилжилт
+    const targetY = nearby ? 0 : -0.12;  // зогссон бол y=0, суусан бол тагаан доошилно
+    _dog.position.y += (targetY - _dog.position.y) * Math.min(1, dt * 5);
+
+    // Хэрэглэгч рүү толгойгоо харуулна (зогссон үед)
+    if (nearby) {
+        const targetAng = Math.atan2(dz, dx);
+        const baseAng = _dog.rotation.y;
+        // Толгойны pivot-оор эргүүлнэ (Y-axis)
+        const relAng = targetAng - baseAng;
+        let wrapped = Math.atan2(Math.sin(relAng), Math.cos(relAng));
+        wrapped = Math.max(-1.1, Math.min(1.1, wrapped));
+        ud.headPivot.rotation.y += (wrapped - ud.headPivot.rotation.y) * Math.min(1, dt * 3);
+    } else {
+        ud.headPivot.rotation.y += (0 - ud.headPivot.rotation.y) * Math.min(1, dt * 2);
+    }
+
+    // Сүүл сэгсрэх — ойрхон үед хурдан, үгүй бол удаан
+    const wagSpeed = nearby ? 10 : 2.5;
+    const wagAmp   = nearby ? 0.6 : 0.25;
+    ud.tailPivot.rotation.y = Math.sin(t * wagSpeed) * wagAmp;
+
+    // Хуцах — хааяа + хүн ойртвол бараг шууд
+    if (t >= ud.nextBark) {
+        ud.barkUntil = t + 0.35;
+        ud.nextBark  = t + (nearby ? 1.5 + Math.random() * 2 : 6 + Math.random() * 8);
+    }
+    if (t < ud.barkUntil) {
+        // Хуцаж байгаа илэрхийлэл — толгой гэнэт дээшилнэ
+        ud.headPivot.rotation.x = -0.55;
+    } else {
+        ud.headPivot.rotation.x += (0 - ud.headPivot.rotation.x) * Math.min(1, dt * 8);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// НҮҮХ — нүүдлийн анимаци
+//   • Морин тэрэг холоос ирнэ
+//   • Ачаатай тэмээ + ачааны түүдэг гарна
+//   • Гэрийн хана, унь гэх мэт хэсгүүд эвхэгдэн жижгэрнэ
+// ══════════════════════════════════════════════════════════════════
+function createCart(x, z, rotY = 0) {
+    const g = new THREE.Group();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x7A4E28, roughness: 0.9 });
+    const drk  = new THREE.MeshStandardMaterial({ color: 0x3A2410, roughness: 0.9 });
+
+    // Шал
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 1.2), wood);
+    floor.position.y = 0.6;
+    g.add(floor);
+
+    // Гуулгам дөрвөн хажуу
+    [[-1.1, 0.6, 0], [1.1, 0.6, 0]].forEach(([px, py, pz]) => {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 1.2), wood);
+        panel.position.set(px, py + 0.25, pz);
+        g.add(panel);
+    });
+    [[0, 0.6, -0.55], [0, 0.6, 0.55]].forEach(([px, py, pz]) => {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.4, 0.08), wood);
+        panel.position.set(px, py + 0.2, pz);
+        g.add(panel);
+    });
+
+    // Дугуй × 2 (том)
+    [-0.8, 0.8].forEach(dz => {
+        [-1.0, 1.0].forEach(dx => { /* noop */ });
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 16), drk);
+        wheel.rotation.x = Math.PI / 2;
+        wheel.position.set(0, 0.55, dz);
+        // Хоёр дугуй — өмнөх ба ардах
+        const wheelFront = wheel.clone(); wheelFront.position.x = 0.9;
+        const wheelBack  = wheel.clone(); wheelBack.position.x  = -0.9;
+        g.add(wheelFront); g.add(wheelBack);
+    });
+
+    // Шийдэм (тэрэгний ам) — морь рүү чиглэсэн
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.08), wood);
+    shaft.position.set(2.2, 0.55, 0);
+    g.add(shaft);
+
+    // Ачаа — эвхэгдсэн хана мэт модон багцууд
+    const bundleMat = new THREE.MeshStandardMaterial({ color: 0xA07A4E, roughness: 0.9 });
+    const ropeMat   = new THREE.MeshStandardMaterial({ color: 0x6E2A18, roughness: 0.7 });
+    for (let i = 0; i < 3; i++) {
+        const bundle = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 0.4), bundleMat);
+        bundle.position.set(0, 0.85 + i * 0.24, -0.2 + (i % 2) * 0.4);
+        g.add(bundle);
+        // Оосор
+        const rope = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 6, 16), ropeMat);
+        rope.rotation.y = Math.PI / 2;
+        rope.scale.set(1.0, 1.0, 4.2);
+        rope.position.set(0, 0.95 + i * 0.24, -0.2 + (i % 2) * 0.4);
+        g.add(rope);
+    }
+
+    // Унь модон багц (дээр нь)
+    const rodsBundle = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 6), wood);
+        rod.rotation.z = Math.PI / 2;
+        rod.position.set(0, 0, -0.2 + i * 0.08);
+        rodsBundle.add(rod);
+    }
+    rodsBundle.position.set(0, 1.45, 0.2);
+    g.add(rodsBundle);
+
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return g;
+}
+
+function createLoadedCamel(x, z, rotY = 0) {
+    const g = createCamel(0, 0, 0);
+    // Бөхэн дээр ачаа байрлуулна
+    const load = new THREE.MeshStandardMaterial({ color: 0x9A6A30, roughness: 0.9 });
+    const rope = new THREE.MeshStandardMaterial({ color: 0x6E2A18, roughness: 0.7 });
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 0.9), load);
+    pack.position.set(0, 2.25, 0);
+    g.add(pack);
+    const pack2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.8), load);
+    pack2.position.set(0, 2.58, 0);
+    g.add(pack2);
+    // Оосрууд
+    for (let i = -1; i <= 1; i += 1) {
+        const r = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.025, 6, 16), rope);
+        r.rotation.y = Math.PI / 2;
+        r.scale.set(1.0, 1.2, 1.0);
+        r.position.set(i * 0.35, 2.3, 0);
+        g.add(r);
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    return g;
+}
+
+const _migrGroup = new THREE.Group();
+_migrGroup.visible = false;
+scene.add(_migrGroup);
+
+// Морин тэрэг + чирэгч морь (групп)
+const _migrCart = createCart(0, 0, 0);
+const _migrPullHorse = createHorse(0, 0, 0, 0x4A2E18, true);
+const _migrCamel = createLoadedCamel(0, 0, 0);
+_migrGroup.add(_migrCart, _migrPullHorse, _migrCamel);
+
+let _migrOn = false;
+let _migrT  = 0;        // секунд — анимацийн цаг
+const _MIGR_DUR = 22;   // нийт үргэлжлэх хугацаа
+
+window.toggleMigration = function () {
+    _migrOn = !_migrOn;
+    _migrGroup.visible = _migrOn;
+    _migrT = 0;
+    const btn = document.getElementById('btn-migration');
+    if (btn) btn.textContent = _migrOn ? '🐫 Нүүх OFF' : '🐫 Нүүх';
+    if (_migrOn) {
+        // Гэрийг аажим эвхэх (хана, унь алга болно)
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => window.setAllFold && window.setAllFold(1 - i * 0.18), 1500 + i * 700);
+        }
+        // Сүүлд нь бүрмөсөн эвхэнэ
+        setTimeout(() => window.setAllFold && window.setAllFold(0.12), 1500 + 5 * 700);
+    } else {
+        // Унтраахад гэрийг бүрэн дэлгэнэ
+        if (window.setAllFold) window.setAllFold(1.0);
+    }
+};
+
+function _tickMigration(dt) {
+    if (!_migrOn) return;
+    _migrT += dt;
+    const t = _migrT;
+    // Тэрэг, морь холоос гэр рүү явна — х= -60..0, z=15
+    const moveDur = 10;
+    const p = Math.min(1, t / moveDur);
+    const startX = -60, endX = -6;
+    const cx = startX + (endX - startX) * p;
+    const cz = 15;
+    _migrPullHorse.position.set(cx + 2.6, 0, cz);
+    _migrPullHorse.rotation.y = -Math.PI / 2;
+    _migrCart.position.set(cx, 0, cz);
+    _migrCart.rotation.y = -Math.PI / 2;
+    // Тэмээ тэрэгний хажуу
+    _migrCamel.position.set(cx - 2.5, 0, cz + 2);
+    _migrCamel.rotation.y = -Math.PI / 2;
+
+    // Хөдөлгөөн — морины хөл дээш доош
+    const bob = Math.sin(t * 6) * 0.06 * (p < 1 ? 1 : 0);
+    _migrPullHorse.position.y = bob;
+    _migrCart.position.y = bob * 0.4;
+
+    // 10-17 сек: буулгаж байгаа мэт — тэрэг зогсоод унь багц дээшээ өргөгдөх жижиг хөдөлгөөн
+    if (t > moveDur && t < moveDur + 6) {
+        const q = (t - moveDur) / 6;
+        // Туслах чичиргээ
+        _migrCart.rotation.z = Math.sin(t * 2) * 0.02 * (1 - q);
+    }
+
+    // 18 сек-ээс хойш бүгдийг алга болгоно
+    if (t > _MIGR_DUR) {
+        _migrOn = false;
+        _migrGroup.visible = false;
+        const btn = document.getElementById('btn-migration');
+        if (btn) btn.textContent = '🐫 Нүүх';
+    }
+}
+
+// Extra tick хураагдах цаг — setAnimationLoop-д хэрэглэнэ
+let _extraT = 0;
+window._tickExtras = function (dt) {
+    _extraT += dt;
+    _tickEagle(_extraT);
+    _tickDog(_extraT, dt);
+    _tickMigration(dt);
+};
