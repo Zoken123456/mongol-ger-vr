@@ -1047,9 +1047,30 @@ function _drawVRMenu() {
 }
 _drawVRMenu();
 
-// VR session эхэлсэн/дууссанд цэсийг харуулах/нуух
-renderer.xr.addEventListener('sessionstart', () => { _vrMenuMesh.visible = true; _drawVRMenu(); });
+// VR session эхэлсэн/дууссанд цэсийг эхэнд нуусан — A/X товчоор гаргана
+renderer.xr.addEventListener('sessionstart', () => { _vrMenuMesh.visible = false; });
 renderer.xr.addEventListener('sessionend',   () => { _vrMenuMesh.visible = false; });
+
+// A (right) эсвэл X (left) товчийг дарахад цэсийг toggle хийнэ
+// Controller gamepad mapping: buttons[4] = A/X (үндсэн төрлийн Oculus/Quest controller)
+let _vrMenuBtnPrev = false;
+function _pollVRMenuToggle() {
+    if (!renderer.xr.isPresenting) return;
+    const session = renderer.xr.getSession();
+    if (!session) return;
+    let pressed = false;
+    for (const src of session.inputSources) {
+        if (src.gamepad && src.gamepad.buttons[4] && src.gamepad.buttons[4].pressed) {
+            pressed = true;
+            break;
+        }
+    }
+    if (pressed && !_vrMenuBtnPrev) {
+        _vrMenuMesh.visible = !_vrMenuMesh.visible;
+        if (_vrMenuMesh.visible) _drawVRMenu();
+    }
+    _vrMenuBtnPrev = pressed;
+}
 
 // Controller events — select = trigger (teleport / menu click), squeeze = grip (door)
 _vrCtrl.forEach((entry, idx) => {
@@ -3877,6 +3898,7 @@ renderer.setAnimationLoop((timestamp) => {
     if (window._tickLake) window._tickLake(delta);
     _tickSmoke(delta);
     if (isRotating) ger.getObject3D().rotation.y += delta * 0.3;
+    _pollVRMenuToggle();
     _tickVRMenuHeadLock();
     _tickVRControllers();
 
