@@ -1311,6 +1311,49 @@ const groundEdge = new THREE.Mesh(
 groundEdge.position.y = -0.26;
 scene.add(groundEdge);
 
+// ── АЛС ХОЛЫН ТОЛГОД, УУЛС — Монголын талын бодит харагдах байдал ──
+(function addDistantHills() {
+    const hillGrp = new THREE.Group();
+    // 2 давхар — ойр ногоон толгод + хол бараан уулс
+    const layers = [
+        { r: 85,  count: 22, hMin: 4, hMax: 9,  color: 0x4A6A2E, darken: 0.0 },
+        { r: 110, count: 18, hMin: 7, hMax: 15, color: 0x2A4020, darken: 0.15 },
+    ];
+    layers.forEach(({ r, count, hMin, hMax, color, darken }) => {
+        for (let i = 0; i < count; i++) {
+            const ang = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+            const radius = r + (Math.random() - 0.5) * 14;
+            const h = hMin + Math.random() * (hMax - hMin);
+            const w = 14 + Math.random() * 10;
+            const d = 10 + Math.random() * 8;
+            // Low-poly хагас бөмбөлөг мэт толгод — SphereGeometry-ийн дээд хагас
+            const geo = new THREE.SphereGeometry(1, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+            // Цэгүүдэд санамсаргүй гажуудал өгч бодитой харагдуулна
+            const pos = geo.attributes.position;
+            for (let v = 0; v < pos.count; v++) {
+                const dy = pos.getY(v);
+                if (dy > 0.05) {
+                    pos.setX(v, pos.getX(v) + (Math.random() - 0.5) * 0.08);
+                    pos.setZ(v, pos.getZ(v) + (Math.random() - 0.5) * 0.08);
+                    pos.setY(v, dy + (Math.random() - 0.3) * 0.12);
+                }
+            }
+            geo.computeVertexNormals();
+            const mat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(color).multiplyScalar(1 - darken),
+                roughness: 0.95, metalness: 0, flatShading: true
+            });
+            const hill = new THREE.Mesh(geo, mat);
+            hill.scale.set(w, h, d);
+            hill.position.set(Math.cos(ang) * radius, -0.2, Math.sin(ang) * radius);
+            hill.rotation.y = Math.random() * Math.PI * 2;
+            hill.receiveShadow = true;
+            hillGrp.add(hill);
+        }
+    });
+    scene.add(hillGrp);
+})();
+
 // ── ГЭР ҮҮСГЭХ ──────────────────────────────────────────────────
 const ger = new MongolianGer(5, 4);
 ger.setPosition(0, 0, 0);
