@@ -1546,54 +1546,100 @@ function createSheep(x, z, rotY = 0) {
     return g;
 }
 
-function createPerson(x, z, rotY = 0, isChild = false, coatColor = 0xEEECDD) {
+function createPerson(x, z, rotY = 0, isChild = false, coatColor = 0x6A5428) {
     const g    = new THREE.Group();
     const s    = isChild ? 0.62 : 1.0;
-    const skin = new THREE.MeshStandardMaterial({ color: 0xC07840, roughness: 0.85 });
-    const coat = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.82 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x120A04, roughness: 0.88 });
+    // Deel-ийн доод ба дээд хэсэгт илүү баялаг өнгөний хослол
+    const skin    = new THREE.MeshStandardMaterial({ color: 0xE2B382, roughness: 0.82 });
+    const coat    = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.78 });
+    const coatDk  = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(coatColor).multiplyScalar(0.75), roughness: 0.8
+    });
+    const belt    = new THREE.MeshStandardMaterial({ color: 0xD89028, roughness: 0.6 });
+    const boot    = new THREE.MeshStandardMaterial({ color: 0x2A1A0E, roughness: 0.85 });
+    const hair    = new THREE.MeshStandardMaterial({ color: 0x1A1008, roughness: 0.85 });
+    const hatBody = new THREE.MeshStandardMaterial({ color: 0xF0E4C0, roughness: 0.75 });
+    const hatBand = new THREE.MeshStandardMaterial({ color: 0x3A2812, roughness: 0.7 });
+    const ornOr   = new THREE.MeshStandardMaterial({ color: 0xD84A28, roughness: 0.6 });
 
-    // Гутал — bottom at y=0
-    [-0.07*s, 0.07*s].forEach(lx => {
-        const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.11*s, 0.08*s, 0.18*s), dark);
-        shoe.position.set(lx, 0.04*s, 0.02*s); g.add(shoe);
+    // Гутал — доод хэсэг зузаан, хамраас нь дээшээ муруй (monclassic)
+    [-0.08*s, 0.08*s].forEach(lx => {
+        const sole = new THREE.Mesh(new THREE.BoxGeometry(0.14*s, 0.07*s, 0.26*s), boot);
+        sole.position.set(lx, 0.035*s, 0.04*s); g.add(sole);
+        const toe = new THREE.Mesh(new THREE.BoxGeometry(0.12*s, 0.08*s, 0.08*s), boot);
+        toe.position.set(lx, 0.11*s, 0.16*s); toe.rotation.x = -0.4; g.add(toe);
     });
-    // Хөлүүд — bottom at y=0.08*s
-    [-0.07*s, 0.07*s].forEach(lx => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12*s, 0.44*s, 0.12*s), coat);
-        leg.position.set(lx, 0.3*s, 0); g.add(leg);
+
+    // Хөлүүд (гутлаас дээш)
+    [-0.08*s, 0.08*s].forEach(lx => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.13*s, 0.35*s, 0.14*s), boot);
+        leg.position.set(lx, 0.27*s, 0); g.add(leg);
     });
-    // Бүс
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.38*s, 0.07*s, 0.22*s),
-        new THREE.MeshStandardMaterial({ color: 0xCC8800, roughness: 0.65 }));
-    belt.position.set(0, 0.56*s, 0); g.add(belt);
-    // Бие (доод)
-    const bodyL = new THREE.Mesh(new THREE.BoxGeometry(0.36*s, 0.28*s, 0.22*s), coat);
-    bodyL.position.set(0, 0.72*s, 0); g.add(bodyL);
-    // Бие (дээд)
-    const bodyU = new THREE.Mesh(new THREE.BoxGeometry(0.32*s, 0.28*s, 0.2*s), coat);
-    bodyU.position.set(0, 0.99*s, 0); g.add(bodyU);
+
+    // Deel-ийн доод хэсэг (өргөн бүрхүүл) — бэлхүүсээс өвдөг рүү
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.26*s, 0.3*s, 0.42*s, 10), coat);
+    skirt.position.set(0, 0.6*s, 0);
+    g.add(skirt);
+    // Deel-ийн ирмэг (илүү бараан тойрог)
+    const skirtEdge = new THREE.Mesh(new THREE.CylinderGeometry(0.302*s, 0.302*s, 0.04*s, 10), coatDk);
+    skirtEdge.position.set(0, 0.41*s, 0);
+    g.add(skirtEdge);
+
+    // Бүс — алтан шар, бага зэрэг тод харагдана
+    const beltM = new THREE.Mesh(new THREE.BoxGeometry(0.42*s, 0.08*s, 0.3*s), belt);
+    beltM.position.set(0, 0.84*s, 0); g.add(beltM);
+
+    // Бие (дээд) — deel
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38*s, 0.36*s, 0.24*s), coat);
+    torso.position.set(0, 1.05*s, 0); g.add(torso);
+    // Хоёр талын зах (зах нь tuurga-д таардаг дөрвөлжин хэлбэр)
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.4*s, 0.08*s, 0.26*s), coatDk);
+    collar.position.set(0, 1.24*s, 0); g.add(collar);
+    // Өнгөт товч мөрний хэсэгт
+    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.025*s, 8, 8), ornOr);
+    pin.position.set(0.1*s, 1.2*s, 0.13*s); g.add(pin);
+
     // Мөр
-    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.46*s, 0.13*s, 0.22*s), coat);
-    shoulder.position.set(0, 1.15*s, 0); g.add(shoulder);
-    // Гарууд
-    [-0.26*s, 0.26*s].forEach(ax => {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1*s, 0.44*s, 0.1*s), coat);
-        arm.position.set(ax, 0.94*s, 0); g.add(arm);
-        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.09*s, 0.09*s, 0.09*s), skin);
-        hand.position.set(ax, 0.7*s, 0); g.add(hand);
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.48*s, 0.12*s, 0.24*s), coat);
+    shoulder.position.set(0, 1.26*s, 0); g.add(shoulder);
+
+    // Гарууд (илүү нарийн)
+    [-0.28*s, 0.28*s].forEach(ax => {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.11*s, 0.44*s, 0.11*s), coat);
+        arm.position.set(ax, 1.04*s, 0); g.add(arm);
+        // Гарны цагаан зах
+        const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.12*s, 0.06*s, 0.12*s), coatDk);
+        cuff.position.set(ax, 0.82*s, 0); g.add(cuff);
+        // Гар
+        const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055*s, 8, 8), skin);
+        hand.position.set(ax, 0.77*s, 0); g.add(hand);
     });
+
     // Хүзүү
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.1*s, 0.12*s, 0.1*s), skin);
-    neck.position.set(0, 1.24*s, 0); g.add(neck);
-    // Толгой
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14*s, 12, 12), skin);
-    head.position.set(0, 1.42*s, 0); g.add(head);
-    // Малгай
-    const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.17*s, 0.17*s, 0.04*s, 12), coat);
-    hatBrim.position.set(0, 1.58*s, 0); g.add(hatBrim);
-    const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.08*s, 0.15*s, 0.16*s, 12), coat);
-    hatTop.position.set(0, 1.7*s, 0); g.add(hatTop);
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.11*s, 0.1*s, 0.11*s), skin);
+    neck.position.set(0, 1.34*s, 0); g.add(neck);
+
+    // Толгой — бага зэрэг дөрвөлжин хэлбэртэй (Монгол хэв)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.24*s, 0.26*s, 0.22*s), skin);
+    head.position.set(0, 1.52*s, 0); g.add(head);
+    // Нүд × 2
+    [-0.06*s, 0.06*s].forEach(ex => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018*s, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0x0A0502 }));
+        eye.position.set(ex, 1.54*s, 0.11*s); g.add(eye);
+    });
+    // Үс — малгайн доорхи урд тал
+    const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.22*s, 0.04*s, 0.23*s), hair);
+    bangs.position.set(0, 1.64*s, 0); g.add(bangs);
+
+    // Малгай — конус хэлбэртэй монгол хэв (2 хэсэг: брим + конус)
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.2*s, 0.2*s, 0.04*s, 14), hatBand);
+    brim.position.set(0, 1.68*s, 0); g.add(brim);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.18*s, 0.18*s, 14), hatBody);
+    cone.position.set(0, 1.8*s, 0); g.add(cone);
+    // Оройн улаан бөмбөлөг
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.035*s, 8, 8), ornOr);
+    orb.position.set(0, 1.92*s, 0); g.add(orb);
 
     g.position.set(x, 0, z);
     g.rotation.y = rotY;
@@ -2633,9 +2679,12 @@ function createOxCart(x, z, rotY = 0) {
 scene.add(createOxCart(10, 4, Math.PI * 0.15));
 
 // Хүмүүс — уяаны дэргэд
-scene.add(createPerson(15.5, 19.5, Math.PI + 0.15, false, 0xEEECDD));
-scene.add(createPerson(20.5, 19.2, Math.PI - 0.2,  false, 0xE8E6D4));
-scene.add(createPerson(18.0, 14.8, Math.PI + 0.4,  true,  0xF0EEDF));
+// Эрэгтэй — хүрэн deel
+scene.add(createPerson(15.5, 19.5, Math.PI + 0.15, false, 0x6A4A28));
+// Эмэгтэй — хөх deel (монгол уламжлалт)
+scene.add(createPerson(20.5, 19.2, Math.PI - 0.2,  false, 0x2A4878));
+// Хүүхэд — улбар шар deel
+scene.add(createPerson(18.0, 14.8, Math.PI + 0.4,  true,  0xB56428));
 
 // ══════════════════════════════════════════════════════════════════
 // ЦАГ АГААР — өдөр/шөнө, бороо, цас, манан
