@@ -929,11 +929,11 @@ const _vrMenuButtons = [
     { label: 'БҮГД',        color: '#3A5A3A', action: () => _vrToggleAll() },
     { label: 'ЭВХЭХ',       color: '#555555', action: () => window.setAllFold(0.12) },
     { label: 'ДЭЛГЭХ',      color: '#555555', action: () => window.setAllFold(1.0) },
-    // Row 2 — Ханын scroll (эвхэх түвшин)
-    { label: 'ЭВХ 25%',     color: '#4A4030', action: () => window.setAllFold(0.25) },
-    { label: 'ЭВХ 50%',     color: '#4A4030', action: () => window.setAllFold(0.50) },
-    { label: 'ЭВХ 75%',     color: '#4A4030', action: () => window.setAllFold(0.75) },
-    { label: 'ЭВХ 90%',     color: '#4A4030', action: () => window.setAllFold(0.90) },
+    // Row 2 — Ханын scroll (4 slot-ыг нэгтгэсэн slider)
+    { label: 'ХАНА', color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
     // Row 3 — Хаалга, эргүүлэх, буцах
     { label: 'ХААЛГА НЭЭХ', color: '#2A6E1A', action: () => window.openDoor() },
     { label: 'ХААЛГА ХААХ', color: '#6E1A1A', action: () => window.closeDoor() },
@@ -1013,6 +1013,8 @@ function _tickVRMenuHeadLock() {
 let _vrHoverIdx = -1;
 let _vrFlashIdx = -1;
 let _vrFlashUntil = 0;
+let _vrCurrentFold = 1.0;   // тухайн үеийн эвхэлтийн түвшин (0.12-1.0)
+let _vrSliderFrac = -1;     // slider дээр hover болсон uv.x (сарних үед)
 
 function _vrShade(hex, amt) {
     const n = parseInt(hex.slice(1), 16);
@@ -1036,6 +1038,46 @@ function _drawVRMenu() {
         const btn = _vrMenuButtons[i];
         const col = i % _VR_COLS;
         const row = Math.floor(i / _VR_COLS);
+
+        // Slider — бүх мөрийг нэг үргэлжилсэн бар болгон зурна
+        if (btn.isSlider) {
+            if (col !== 0) continue; // эхний slot дээр нэг л удаа зурна
+            const sy = row * _VR_BH + 8;
+            const sh = _VR_BH - 16;
+            const sx = 8;
+            const sw = _VR_CV_W - 16;
+            // Арын хүрз
+            ctx.fillStyle = '#1A1A1A';
+            ctx.fillRect(sx, sy, sw, sh);
+            ctx.fillStyle = '#3A2A1A';
+            ctx.fillRect(sx + 2, sy + 2, sw - 4, sh - 4);
+            // Одоогийн эвхэлтийн түвшин (дүүргэлт)
+            const fillW = Math.max(0, sw * _vrCurrentFold);
+            const fillGrad = ctx.createLinearGradient(sx, sy, sx + fillW, sy);
+            fillGrad.addColorStop(0, '#B87020');
+            fillGrad.addColorStop(1, '#F0A840');
+            ctx.fillStyle = fillGrad;
+            ctx.fillRect(sx, sy, fillW, sh);
+            // Hover preview шугам
+            if (_vrSliderFrac >= 0 && i === _vrHoverIdx) {
+                const px = sx + sw * _vrSliderFrac;
+                ctx.fillStyle = 'rgba(255,255,255,0.22)';
+                ctx.fillRect(sx, sy, px - sx, sh);
+            }
+            // Handle — одоогийн утгын байрлал
+            const hx = sx + fillW;
+            ctx.fillStyle = '#FFE9B0';
+            ctx.fillRect(hx - 6, sy - 5, 12, sh + 10);
+            // Шошго
+            ctx.fillStyle = '#FFF';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 24px "Segoe UI", sans-serif';
+            ctx.fillText(`ХАНА  —  ${Math.round(_vrCurrentFold * 100)}%`,
+                sx + sw / 2, sy + sh / 2);
+            continue;
+        }
+
         const x = col * _VR_BW + 8;
         const y = row * _VR_BH + 8;
         const w = _VR_BW - 16;
@@ -1106,6 +1148,15 @@ _vrCtrl.forEach((entry, idx) => {
             const btn = _vrMenuButtons[_vrHoverIdx];
             _vrFlashIdx = _vrHoverIdx;
             _vrFlashUntil = performance.now() + 200;
+            // Slider — uv.x-ийг ашиглан эвхэлтийн түвшинг тогтооно
+            if (btn.isSlider && _vrSliderFrac >= 0) {
+                const fold = Math.max(0.12, Math.min(1.0, 0.12 + _vrSliderFrac * 0.88));
+                _vrCurrentFold = fold;
+                if (window.setAllFold) window.setAllFold(fold);
+                _drawVRMenu();
+                _tpRing.visible = false;
+                return;
+            }
             _drawVRMenu();
             try { btn.action(); } catch (e) { console.error('VR menu action error:', e); }
             _tpRing.visible = false;
@@ -1142,7 +1193,9 @@ function _tickVRControllers() {
     if (!renderer.xr.isPresenting) { _tpRing.visible = false; _vrHoverIdx = -1; return; }
 
     const prevHover = _vrHoverIdx;
+    const prevSlider = _vrSliderFrac;
     _vrHoverIdx = -1;
+    _vrSliderFrac = -1;
     let anyTp = false;
 
     _vrCtrl.forEach(({ ctrl, ray, tpReady }, idx) => {
@@ -1165,6 +1218,12 @@ function _tickVRControllers() {
                 if (bi >= 0 && bi < _vrMenuButtons.length) {
                     _vrHoverIdx = bi;
                     hitMenu = true;
+                    // Slider дээр uv.x хадгална — селект үед энэ хувь нь fold болно
+                    if (_vrMenuButtons[bi].isSlider) {
+                        _vrSliderFrac = Math.max(0, Math.min(1, uv.x));
+                    } else {
+                        _vrSliderFrac = -1;
+                    }
                     ray.scale.z = _vrOrigin.distanceTo(mh[0].point) / 10;
                     ray.material.opacity = 0.9;
                 }
@@ -1190,8 +1249,9 @@ function _tickVRControllers() {
 
     if (!anyTp) _tpRing.visible = false;
 
-    // Hover солигдсон эсвэл flash үргэлжилж байвал menu-г дахин зур
-    if (_vrHoverIdx !== prevHover || performance.now() < _vrFlashUntil) {
+    // Hover солигдсон, slider дээр гулсуулж байгаа, эсвэл flash үргэлжилж байвал menu-г дахин зур
+    if (_vrHoverIdx !== prevHover || Math.abs(_vrSliderFrac - prevSlider) > 0.003 ||
+        performance.now() < _vrFlashUntil) {
         _drawVRMenu();
     }
 }
