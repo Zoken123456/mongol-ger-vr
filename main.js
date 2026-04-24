@@ -1472,28 +1472,58 @@ function createHorse(x, z, rotY = 0, color = 0x6B3A2A, hasBlanket = false) {
     const tail2 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.44, 0.22), dark);
     tail2.position.set(-0.9, 0.74, 0); tail2.rotation.z = 0.38; g.add(tail2);
 
-    // Цамц/хөнжил (blanket)
+    // Цамц/хөнжил (blanket) + эмээл + хазаар
     if (hasBlanket) {
-        const wMat = new THREE.MeshStandardMaterial({ color: 0xEEECE4, roughness: 0.86 });
-        const bMat = new THREE.MeshStandardMaterial({ color: 0x2255BB, roughness: 0.7 });
-        // Дээд хавтан
+        const wMat  = new THREE.MeshStandardMaterial({ color: 0xEEECE4, roughness: 0.86 });
+        const bMat  = new THREE.MeshStandardMaterial({ color: 0x2255BB, roughness: 0.7 });
+        const leath = new THREE.MeshStandardMaterial({ color: 0x5A2A10, roughness: 0.75 });
+        const leathD= new THREE.MeshStandardMaterial({ color: 0x3A1A08, roughness: 0.8 });
+        const metal = new THREE.MeshStandardMaterial({ color: 0xC8A848, roughness: 0.4, metalness: 0.7 });
+
+        // Хөнжил (saddle cloth)
         const top = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.07, 0.56), wMat);
         top.position.set(0, 1.25, 0); g.add(top);
-        // Хажуугийн унжлага
         [-0.29, 0.29].forEach(bz => {
             const side = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.38, 0.04), wMat);
             side.position.set(0, 1.05, bz); g.add(side);
         });
-        // Урд унжлага
-        const front = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.38, 0.54), wMat);
-        front.position.set(0.65, 1.05, 0); g.add(front);
-        // Хөх зах
         const edgeTop = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.58), bMat);
         edgeTop.position.set(0, 1.22, 0); g.add(edgeTop);
         [-0.3, 0.3].forEach(bz => {
             const edgeSide = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.04, 0.04), bMat);
             edgeSide.position.set(0, 0.86, bz); g.add(edgeSide);
         });
+
+        // ЭМЭЭЛ — хөнжил дээр модон эмээл
+        const saddleBase = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.48), leath);
+        saddleBase.position.set(-0.05, 1.33, 0); g.add(saddleBase);
+        // Өндөр өвч (pommel) — хойд болон өмнөх талд
+        const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.12), leathD);
+        pommel.position.set(0.18, 1.42, 0); g.add(pommel);
+        const cantle = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.12), leathD);
+        cantle.position.set(-0.22, 1.44, 0); g.add(cantle);
+        // Алтан гоёл эмээл дээр
+        const saddleOrn = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), metal);
+        saddleOrn.position.set(0.18, 1.48, 0.06); g.add(saddleOrn);
+        // Дөрөөнүүд (stirrups) — 2 тал
+        [-0.24, 0.24].forEach(sz => {
+            const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 5), leathD);
+            rope.position.set(0, 1.12, sz); g.add(rope);
+            const stirrup = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.014, 6, 10), metal);
+            stirrup.rotation.x = Math.PI / 2;
+            stirrup.position.set(0, 0.96, sz); g.add(stirrup);
+        });
+
+        // ХАЗААР — морины толгойн нарийн уяа
+        const rein = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.02), leath);
+        rein.position.set(0.82, 1.38, 0); rein.rotation.z = 0.4; g.add(rein);
+        [-0.13, 0.13].forEach(rz => {
+            const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.02, 0.02), leath);
+            cheek.position.set(0.92, 1.54, rz); cheek.rotation.z = -0.4; g.add(cheek);
+        });
+        // Носовой хэсэг
+        const nosePc = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.26), leath);
+        nosePc.position.set(1.05, 1.5, 0); g.add(nosePc);
     }
 
     g.position.set(x, 0, z);
@@ -1504,41 +1534,72 @@ function createHorse(x, z, rotY = 0, color = 0x6B3A2A, hasBlanket = false) {
 
 function createSheep(x, z, rotY = 0) {
     const g    = new THREE.Group();
-    const wool = new THREE.MeshStandardMaterial({ color: 0xEDEBE0, roughness: 0.96 });
-    const skin = new THREE.MeshStandardMaterial({ color: 0xB08868, roughness: 0.9 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1A100A, roughness: 0.88 });
+    const wool  = new THREE.MeshStandardMaterial({ color: 0xF2EFE4, roughness: 0.98, flatShading: true });
+    const woolD = new THREE.MeshStandardMaterial({ color: 0xDCD6C2, roughness: 0.98, flatShading: true });
+    const skin  = new THREE.MeshStandardMaterial({ color: 0xB08868, roughness: 0.9 });
+    const dark  = new THREE.MeshStandardMaterial({ color: 0x1A100A, roughness: 0.88 });
 
-    // Ноостой бие
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.44, 0.4), wool);
-    body.position.set(0, 0.52, 0); g.add(body);
-    // Ноосны гүдгэр
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), wool);
-    puff.scale.set(1.45, 0.95, 0.88);
-    puff.position.set(0, 0.6, 0); g.add(puff);
+    // Үндсэн ноостой бие — цагаан бөмбөлгүүдийн хослол (нойтон/шуурхай low-poly стиль)
+    const mainBody = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 8), wool);
+    mainBody.scale.set(1.4, 1.0, 1.05);
+    mainBody.position.set(0, 0.58, 0); g.add(mainBody);
+    // Нэмэлт ноосны бөмбөлгүүд (гадаргыг fluffy болгоно)
+    const puffs = [
+        [-0.22,  0.72,  0.15, 0.18],
+        [ 0.22,  0.72, -0.15, 0.17],
+        [-0.14,  0.76, -0.18, 0.16],
+        [ 0.14,  0.76,  0.18, 0.16],
+        [ 0.0,   0.86,  0.0,  0.19],
+        [-0.32,  0.64,  0.0,  0.2],
+        [ 0.28,  0.66,  0.0,  0.2],
+    ];
+    puffs.forEach(([px, py, pz, pr]) => {
+        const p = new THREE.Mesh(new THREE.SphereGeometry(pr, 8, 6),
+            Math.random() > 0.5 ? wool : woolD);
+        p.position.set(px, py, pz);
+        g.add(p);
+    });
 
-    // Хүзүү
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.18, 0.14), skin);
-    neck.position.set(0.3, 0.66, 0); g.add(neck);
-    // Толгой
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.19, 0.17), skin);
-    head.position.set(0.46, 0.74, 0); g.add(head);
+    // Хүзүү (ноосгүй)
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.15), skin);
+    neck.position.set(0.34, 0.64, 0);
+    neck.rotation.z = -0.3;
+    g.add(neck);
+    // Толгой — хоёр хэсэг (духтай)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), skin);
+    head.position.set(0.52, 0.76, 0); g.add(head);
+    // Нүүрний ноос (толгой дээр цагаан ороосон)
+    const headFluff = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), wool);
+    headFluff.position.set(0.48, 0.86, 0);
+    headFluff.scale.set(1.3, 0.9, 1.2);
+    g.add(headFluff);
     // Хамар
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.14), skin);
-    nose.position.set(0.57, 0.69, 0); g.add(nose);
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.14), skin);
+    nose.position.set(0.62, 0.72, 0); g.add(nose);
+    // Хар хошуу
+    const noseT = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.08), dark);
+    noseT.position.set(0.67, 0.73, 0); g.add(noseT);
     // Чих × 2
-    [-0.08, 0.08].forEach(ez => {
-        const ear = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.04), skin);
-        ear.position.set(0.42, 0.84, ez); g.add(ear);
+    [-0.1, 0.1].forEach(ez => {
+        const ear = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.08), skin);
+        ear.position.set(0.44, 0.88, ez); ear.rotation.z = 0.3; g.add(ear);
+    });
+    // Нүд × 2
+    [-0.07, 0.07].forEach(ez => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), dark);
+        eye.position.set(0.6, 0.8, ez); g.add(eye);
     });
 
-    // Хөлүүд — bottom ≈ y=0
-    [[-0.25, -0.13], [-0.25, 0.13], [0.18, -0.13], [0.18, 0.13]].forEach(([lx, lz]) => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.32, 0.09), dark);
-        leg.position.set(lx, 0.17, lz); g.add(leg);
+    // Хөлүүд — дээд (ноостой бор), доод (хар)
+    [[-0.22, -0.13], [-0.22, 0.13], [0.18, -0.13], [0.18, 0.13]].forEach(([lx, lz]) => {
+        const upper = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.09), skin);
+        upper.position.set(lx, 0.28, lz); g.add(upper);
+        const lower = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.2, 0.085), dark);
+        lower.position.set(lx, 0.1, lz); g.add(lower);
     });
-    // Сүүл
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.09), wool);
-    tail.position.set(-0.4, 0.6, 0); g.add(tail);
+    // Сүүл — жижиг ноосон
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), wool);
+    tail.position.set(-0.42, 0.64, 0); g.add(tail);
 
     g.position.set(x, 0, z);
     g.rotation.y = rotY;
@@ -4397,6 +4458,139 @@ window.addEventListener('keydown', (e) => {
         case 'n': buildStepByStep(); break;
     }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// ГАЛ ГОЛОМТ — чулуун тойрог + улаан дөл + анимац
+// ══════════════════════════════════════════════════════════════════
+function createCampfire(x, z) {
+    const g = new THREE.Group();
+    const stone = new THREE.MeshStandardMaterial({ color: 0x6A6A66, roughness: 0.95, flatShading: true });
+    const stoneD= new THREE.MeshStandardMaterial({ color: 0x4A4844, roughness: 0.96, flatShading: true });
+    const wood  = new THREE.MeshStandardMaterial({ color: 0x4A2814, roughness: 0.9 });
+    const ember = new THREE.MeshStandardMaterial({ color: 0xF06020, emissive: 0xC03010,
+                                                    emissiveIntensity: 0.8, roughness: 0.85 });
+    const flame1= new THREE.MeshStandardMaterial({ color: 0xFFB020, emissive: 0xFF7010,
+                                                    emissiveIntensity: 1.4, roughness: 0.8,
+                                                    transparent: true, opacity: 0.9 });
+    const flame2= new THREE.MeshStandardMaterial({ color: 0xFFEE60, emissive: 0xFFC820,
+                                                    emissiveIntensity: 1.8, roughness: 0.6,
+                                                    transparent: true, opacity: 0.95 });
+
+    // Чулуун тойрог — 8 ширхэг
+    for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        const r = 0.5;
+        const s = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(0.16 + Math.random() * 0.06, 0),
+            Math.random() > 0.5 ? stone : stoneD
+        );
+        s.position.set(Math.cos(ang) * r, 0.09, Math.sin(ang) * r);
+        s.rotation.set(Math.random(), Math.random(), Math.random());
+        g.add(s);
+    }
+    // Модон хайлаас дотор
+    [[-0.15, 0.08, 0.3], [0.18, 0.08, -0.3], [0, 0.08, 0]].forEach(([wx, wy, wrot]) => {
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.65, 6), wood);
+        log.position.set(wx, wy, 0);
+        log.rotation.set(0, wrot, Math.PI / 2);
+        g.add(log);
+    });
+    // Нүүрс
+    for (let i = 0; i < 6; i++) {
+        const e = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06, 0), ember);
+        e.position.set((Math.random() - 0.5) * 0.4, 0.1, (Math.random() - 0.5) * 0.4);
+        g.add(e);
+    }
+    // Дөл — 2 тетраэдрон давхарласан
+    const flame = new THREE.Group();
+    const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 6), flame1);
+    f1.position.y = 0.35; flame.add(f1);
+    const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.45, 6), flame2);
+    f2.position.y = 0.46; flame.add(f2);
+    const f3 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 5), flame2);
+    f3.position.y = 0.58; flame.add(f3);
+    flame.userData.isFlame = true;
+    g.add(flame);
+
+    // Галын хойд гэрэл
+    const pl = new THREE.PointLight(0xFF8030, 1.2, 6, 1.6);
+    pl.position.set(0, 0.4, 0);
+    g.add(pl);
+    g.userData.pointLight = pl;
+    g.userData.flame = flame;
+
+    g.position.set(x, 0, z);
+    g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return g;
+}
+
+const _campfire = createCampfire(-4, 4);
+scene.add(_campfire);
+
+// Галын мерцэх анимаци
+const _campfireTicker = { t: 0 };
+(function hookCampfire() {
+    const orig = _campfire.userData.flame;
+    const pl   = _campfire.userData.pointLight;
+    // animation loop дотор tick
+    const id = setInterval(() => {
+        _campfireTicker.t += 0.08;
+        const t = _campfireTicker.t;
+        orig.scale.y = 1.0 + Math.sin(t * 2.3) * 0.18 + Math.sin(t * 5.1) * 0.06;
+        orig.scale.x = 1.0 + Math.cos(t * 3.1) * 0.08;
+        orig.rotation.y = Math.sin(t * 1.5) * 0.1;
+        if (pl) pl.intensity = 1.0 + Math.sin(t * 4.3) * 0.3 + Math.sin(t * 7.1) * 0.15;
+    }, 60);
+    window.addEventListener('beforeunload', () => clearInterval(id));
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// МОДОН БОЧКА + ХУВИН
+// ══════════════════════════════════════════════════════════════════
+function createBarrel(x, z, big = true) {
+    const g = new THREE.Group();
+    const wood  = new THREE.MeshStandardMaterial({ color: 0xA0682A, roughness: 0.85 });
+    const dark  = new THREE.MeshStandardMaterial({ color: 0x5A3A1A, roughness: 0.88 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x3A2A1A, roughness: 0.6, metalness: 0.5 });
+
+    const h = big ? 0.7 : 0.4;
+    const r = big ? 0.3 : 0.18;
+    // Гэр барьц (барил) — CylinderGeometry хэлбэрээр
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, h, 12), wood);
+    body.position.y = h / 2; g.add(body);
+    // Босоо зураасаар модны шугам (3 ширхэг)
+    for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, h - 0.04, 0.005), dark);
+        stripe.position.set(Math.cos(ang) * r * 1.01, h / 2, Math.sin(ang) * r * 1.01);
+        stripe.rotation.y = -ang;
+        g.add(stripe);
+    }
+    // Төмөр бүс (3 ширхэг)
+    [0.12, 0.5, 0.88].forEach(t => {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(r * 1.015, 0.02, 6, 18), metal);
+        band.position.y = h * t;
+        band.rotation.x = Math.PI / 2;
+        g.add(band);
+    });
+    // Дээд, доод хавтан
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r * 0.9, 0.02, 12), wood);
+    top.position.y = h + 0.01; g.add(top);
+
+    if (!big) {
+        // Хувин бариул
+        const handle = new THREE.Mesh(new THREE.TorusGeometry(r * 0.85, 0.01, 5, 10, Math.PI), metal);
+        handle.position.y = h + 0.04;
+        g.add(handle);
+    }
+
+    g.position.set(x, 0, z);
+    g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return g;
+}
+
+scene.add(createBarrel(-3.2, 4.6, true));
+scene.add(createBarrel(-3.6, 5.1, false));
 
 // ══════════════════════════════════════════════════════════════════
 // НААДАМ — Эрийн гурван наадам (бөх, морин уралдаан, сур харвах)
