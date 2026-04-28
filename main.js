@@ -1621,7 +1621,7 @@ const _innerFeltMat = new THREE.MeshStandardMaterial({
 function _makeFeltPanel(radius, wallH, doorAngle, panelIdx) {
     const totalArc = Math.PI * 2 - doorAngle;
     const half = totalArc / 2;
-    const gapEnd = Math.PI / 2 + doorAngle / 2;
+    const gapEnd = doorAngle / 2;       // gap +X тэнхлэгт (хаалга)
     const tStart = gapEnd + panelIdx * half;
     const geo = new THREE.CylinderGeometry(radius, radius, wallH * 0.96, 36, 1, true, tStart, half);
     const m = new THREE.Mesh(geo, _innerFeltMat);
@@ -1647,14 +1647,14 @@ const _outerCoverPanels = [
     new THREE.Mesh(
         new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
             36, 1, true,
-            Math.PI / 2 + _DOOR_ANGLE / 2,
+            _DOOR_ANGLE / 2,                 // gap +X тэнхлэгт
             (Math.PI * 2 - _DOOR_ANGLE) / 2),
         _outerCoverMat
     ),
     new THREE.Mesh(
         new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
             36, 1, true,
-            Math.PI / 2 + _DOOR_ANGLE / 2 + (Math.PI * 2 - _DOOR_ANGLE) / 2,
+            _DOOR_ANGLE / 2 + (Math.PI * 2 - _DOOR_ANGLE) / 2,
             (Math.PI * 2 - _DOOR_ANGLE) / 2),
         _outerCoverMat
     ),

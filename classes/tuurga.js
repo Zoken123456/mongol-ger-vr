@@ -119,9 +119,9 @@ export class Tuurga {
             roughness: 0.9, metalness: 0, side: THREE.DoubleSide
         });
 
-        // theta=PI/2 → +X (хаалга байрлах тал)
+        // theta=0 → +X (хаалга байрлах тал) — Three.js CylinderGeometry стандартаар
         // gap дуусах → panel эхэлнэ
-        const gapEnd   = Math.PI / 2 + da / 2;
+        const gapEnd   = da / 2;
         const totalArc = Math.PI * 2 - da;
         const half     = totalArc / 2;
 
