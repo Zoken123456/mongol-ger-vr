@@ -2980,7 +2980,7 @@ scene.add(_starPoints);
 // ӨДӨР / ШӨНӨ — тасралтгүй мөчлөг (sun arc + sky gradient)
 // ══════════════════════════════════════════════════════════════════
 const CYCLE_SECONDS = 120;  // 1 өдөр ≈ 2 минут auto-mode-д
-let _timeOfDay = 0.5;       // 0=шөнө дунд, 0.25=үүр цайх, 0.5=үд, 0.75=нар жаргах
+let _timeOfDay = 0.7;       // нар жаргах ойролцоо — алтан цаг (зургийн өнгөтэй ойртуулна)
 let _autoCycle = false;
 
 // Өнгөний key-frames (top ба bottom gradient)
@@ -5289,6 +5289,124 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
     }
     renderer.domElement.style.cursor = kind ? 'pointer' : '';
 });
+
+// ══════════════════════════════════════════════════════════════════
+// НЭМЭЛТ ГЭРҮҮД — visual only (interactive биш, гадна талд)
+// ══════════════════════════════════════════════════════════════════
+function createSimpleGer(x, z, scaleN = 1) {
+    const grp = new THREE.Group();
+    const R = 4 * scaleN, H = 3.2 * scaleN;
+    // Цэнхэр хээ туурга — Tuurga texture-ийг ашиглана (дахин эх үүсгэхгүй)
+    // Энгийн cylinder + cone дээвэр
+    const tuurgaMat = new THREE.MeshStandardMaterial({ color: 0xF4EDD4, roughness: 0.92 });
+    const tuurga = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 24, 1, true), tuurgaMat);
+    tuurga.position.y = H / 2; grp.add(tuurga);
+    // Дээвэр (конус)
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0xF0E8C8, roughness: 0.9 });
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(R + 0.3, H * 0.55, 24), roofMat);
+    roof.position.y = H + H * 0.275; grp.add(roof);
+    // Дээврийн орой — улаан тооно
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0xC04020, roughness: 0.6 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45 * scaleN, 0.06, 6, 16), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = H + H * 0.55 - 0.05; grp.add(ring);
+    // Цэнхэр зах туурга дээр
+    const blueMat = new THREE.MeshStandardMaterial({ color: 0x14337A, roughness: 0.7 });
+    const blueBand = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.02, R + 0.02, 0.35, 24, 1, true), blueMat);
+    blueBand.position.y = H - 0.2; grp.add(blueBand);
+    // Улаан хаалга
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0xC83020, roughness: 0.7 });
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.9 * scaleN, 1.6 * scaleN, 0.1), doorMat);
+    door.position.set(R + 0.05, 0.8 * scaleN, 0); grp.add(door);
+    // Бүслүүр (3 ширхэг)
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0xE89030, roughness: 0.8 });
+    [0.25, 0.5, 0.75].forEach(t => {
+        const belt = new THREE.Mesh(new THREE.TorusGeometry(R + 0.04, 0.03, 6, 24), beltMat);
+        belt.rotation.x = Math.PI / 2;
+        belt.position.y = H * t; grp.add(belt);
+    });
+    grp.position.set(x, 0, z);
+    grp.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return grp;
+}
+// 2 нэмэлт гэр гол гэрийн хажууд
+scene.add(createSimpleGer(-7, -2, 0.9));
+scene.add(createSimpleGer(7, -3, 0.85));
+
+// ══════════════════════════════════════════════════════════════════
+// ДАЛБАА СҮЛЖИХ — гэрүүд хооронд төвд тулгуур + олон өнгийн далбаа
+// ══════════════════════════════════════════════════════════════════
+(function addPrayerFlags() {
+    const grp = new THREE.Group();
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x4A2A14, roughness: 0.88 });
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x9A8A6A, roughness: 0.85 });
+    const colors = [0xE83828, 0xE89028, 0xF0D028, 0x40A0E8, 0x40C870];
+    // 4 тулгуур
+    const poles = [[-9, -8], [-7, 4], [9, -8], [7, 4]];
+    const poleY = 5;
+    poles.forEach(([x, z]) => {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, poleY, 7), woodMat);
+        pole.position.set(x, poleY / 2, z); grp.add(pole);
+    });
+    // Хоёр тулгуурын хооронд олс татаж далбаа өлгөх
+    function strung(p1, p2) {
+        const [x1, z1] = p1, [x2, z2] = p2;
+        const len = Math.hypot(x2 - x1, z2 - z1);
+        const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
+        const ang = Math.atan2(z2 - z1, x2 - x1);
+        // Олс
+        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len, 6), ropeMat);
+        rope.position.set(cx, poleY - 0.15, cz);
+        rope.rotation.y = -ang; rope.rotation.z = Math.PI / 2; grp.add(rope);
+        // Далбаа (15 ширхэг олс дагуу)
+        const flagN = Math.max(8, Math.floor(len * 1.3));
+        for (let i = 0; i < flagN; i++) {
+            const tt = (i + 0.5) / flagN;
+            const px = x1 + (x2 - x1) * tt;
+            const pz = z1 + (z2 - z1) * tt;
+            // Олс бага зэрэг намсна — sag
+            const sag = Math.sin(tt * Math.PI) * 0.25;
+            const py = poleY - 0.15 - sag;
+            const flagMat = new THREE.MeshStandardMaterial({
+                color: colors[i % colors.length], roughness: 0.85, side: THREE.DoubleSide
+            });
+            const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.45), flagMat);
+            flag.position.set(px, py - 0.22, pz);
+            flag.rotation.y = -ang + Math.PI / 2;
+            flag.rotation.z = (Math.random() - 0.5) * 0.2;
+            grp.add(flag);
+        }
+    }
+    strung(poles[0], poles[2]); // зүүн → баруун
+    strung(poles[1], poles[3]); // нөгөө шугам
+    scene.add(grp);
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// ШОРОО ЗАМ — гэрүүд хооронд тойрсон цайвар тойрог зам
+// ══════════════════════════════════════════════════════════════════
+(function addPaths() {
+    const pathMat = new THREE.MeshStandardMaterial({
+        color: 0xB89860, roughness: 0.95, transparent: true, opacity: 0.85
+    });
+    // Гол гэрийг тойрсон жижиг тойрог
+    const ring = new THREE.Mesh(new THREE.RingGeometry(5.4, 6.2, 32), pathMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.01;
+    scene.add(ring);
+    // Гэр хоорондын зам
+    [
+        [-5, -2, -7, -2],
+        [5, -2, 7, -3],
+    ].forEach(([x1, z1, x2, z2]) => {
+        const len = Math.hypot(x2 - x1, z2 - z1);
+        const seg = new THREE.Mesh(new THREE.PlaneGeometry(len + 1, 0.8), pathMat);
+        seg.rotation.x = -Math.PI / 2;
+        seg.position.set((x1 + x2) / 2, 0.01, (z1 + z2) / 2);
+        seg.rotation.z = -Math.atan2(z2 - z1, x2 - x1);
+        scene.add(seg);
+    });
+})();
 
 // ══════════════════════════════════════════════════════════════════
 // ЗЭРЭГЛЭЭ — зэрлэг цэцэг, үүл, бүргэд (зургийн хэв маяг)
