@@ -42,24 +42,20 @@ export class Bvsluur {
                 color: 0xE8901A, roughness: 0.82, metalness: 0.0, side: THREE.DoubleSide
             });
 
-            const wrapper = new THREE.Group();
-            wrapper.rotation.y = -da / 2;   // gap-г хаалганы +X байрлалд нийлүүлнэ
-
-            // Хавтгай туурганы дагуу нэхсэн бүс — нимгэн open-ended cylinder
+            // Хана-той адил: гарц нь +X тэнхлэгт (хаалга), thetaStart = da/2
             const band = new THREE.Mesh(
                 new THREE.CylinderGeometry(R, R, 0.16, 60, 1, true,
-                                           0, arc),
+                                           da / 2, arc),
                 mat);
             band.castShadow = true;
             band.userData.isClickMesh = true;
-            wrapper.add(band);
 
             const outer       = new THREE.Group();
             outer.name        = `bvsluur-${i + 1}`;
             outer.userData.toggleable = true;
             outer.userData.label      = `Бүслүүр ${i + 1}`;
             outer.position.y  = y;
-            outer.add(wrapper);
+            outer.add(band);
 
             this._bands.push(outer);
             this.group.add(outer);
