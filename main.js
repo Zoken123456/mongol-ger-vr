@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ── Classes-ийн import ───────────────────────────────────────────
 import { Khana }   from './classes/khana.js';
@@ -789,17 +794,44 @@ scene.fog = new THREE.FogExp2(0xA8D4F0, 0.006);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
 camera.position.set(12, 7, 4);   // хаалга харагдахуйц байрлал
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// ── PMREM IBL орчны гэрэлтүүлэг — PBR материалд бодит харагдалт өгнө ──
+const _pmrem = new THREE.PMREMGenerator(renderer);
+_pmrem.compileEquirectangularShader();
+const _envScene = new RoomEnvironment();
+const _envTex = _pmrem.fromScene(_envScene, 0.04).texture;
+scene.environment = _envTex;
+scene.environmentIntensity = 0.6;  // нар + амбиент гэрэлтэй уялдуулан балансладаг
 
 // ── VR ТОХИРГОО ─────────────────────────────────────────────────
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
+
+// ── POST-PROCESSING (Bloom + tone mapping) — VR-д идэвхгүй болгоно ──
+const _composer = new EffectComposer(renderer);
+let _camForComposer;
+function _initComposer(cam) {
+    _camForComposer = cam;
+    _composer.passes.length = 0;
+    _composer.addPass(new RenderPass(scene, cam));
+    const _bloom = new UnrealBloomPass(
+        new THREE.Vector2(innerWidth, innerHeight),
+        0.45,   // strength
+        0.6,    // radius
+        0.82    // threshold (зөвхөн тод хэсгүүд)
+    );
+    _composer.addPass(_bloom);
+    _composer.addPass(new OutputPass());
+}
+_initComposer(camera);
 
 // VR товч (WebXR дэмжигддэг браузерт харагдана)
 const vrButton = VRButton.createButton(renderer);
@@ -4169,7 +4201,12 @@ renderer.setAnimationLoop((timestamp) => {
     if (_moonHalo.visible) _moonHalo.lookAt(camera.position);
 
     controls.update();
-    renderer.render(scene, camera);
+    // VR горимд post-processing ажиллахгүй (stereo render-тэй зөрчилдөнө)
+    if (renderer.xr.isPresenting) {
+        renderer.render(scene, camera);
+    } else {
+        _composer.render();
+    }
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -4919,6 +4956,7 @@ window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+    _composer.setSize(innerWidth, innerHeight);
 });
 
 // ══════════════════════════════════════════════════════════════════
