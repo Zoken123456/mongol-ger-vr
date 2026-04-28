@@ -1607,6 +1607,64 @@ const ger = new MongolianGer(5, 4);
 ger.setPosition(0, 0, 0);
 scene.add(ger.getObject3D());
 
+// ── ДОТОР БҮРЭЭС (эсгийн дотор давхарга — 2 хэсэг урд/ард) ───────
+// Туурганаас бага зэрэг дотор талд, тагтай эсгий
+const _GER_R = 5, _GER_WALL_H = 4;
+const _DOOR_ANGLE = Math.PI / 10;
+const _innerFeltMat = new THREE.MeshStandardMaterial({
+    color: 0xE8DAB0, roughness: 0.95, side: THREE.DoubleSide
+});
+function _makeFeltPanel(radius, wallH, doorAngle, panelIdx) {
+    const totalArc = Math.PI * 2 - doorAngle;
+    const half = totalArc / 2;
+    const gapEnd = Math.PI / 2 + doorAngle / 2;
+    const tStart = gapEnd + panelIdx * half;
+    const geo = new THREE.CylinderGeometry(radius, radius, wallH * 0.96, 36, 1, true, tStart, half);
+    const m = new THREE.Mesh(geo, _innerFeltMat);
+    m.position.y = wallH * 0.48;
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
+}
+const _innerFeltGroup = new THREE.Group();
+_innerFeltGroup.name = 'inner-felt';
+const _innerFeltPanels = [
+    _makeFeltPanel(_GER_R - 0.05, _GER_WALL_H, _DOOR_ANGLE, 0),
+    _makeFeltPanel(_GER_R - 0.05, _GER_WALL_H, _DOOR_ANGLE, 1),
+];
+_innerFeltPanels.forEach(p => _innerFeltGroup.add(p));
+_innerFeltGroup.visible = false;
+scene.add(_innerFeltGroup);
+
+// ── ГАДНА ЦАГААН БҮРЭЭС (тууrgын гадна талд цагаан эсгий) ─────
+const _outerCoverMat = new THREE.MeshStandardMaterial({
+    color: 0xFAFAF0, roughness: 0.92, side: THREE.DoubleSide
+});
+const _outerCoverPanels = [
+    new THREE.Mesh(
+        new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
+            36, 1, true,
+            Math.PI / 2 + _DOOR_ANGLE / 2,
+            (Math.PI * 2 - _DOOR_ANGLE) / 2),
+        _outerCoverMat
+    ),
+    new THREE.Mesh(
+        new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
+            36, 1, true,
+            Math.PI / 2 + _DOOR_ANGLE / 2 + (Math.PI * 2 - _DOOR_ANGLE) / 2,
+            (Math.PI * 2 - _DOOR_ANGLE) / 2),
+        _outerCoverMat
+    ),
+];
+const _outerCoverGroup = new THREE.Group();
+_outerCoverGroup.name = 'outer-cover';
+_outerCoverPanels.forEach(p => {
+    p.position.y = _GER_WALL_H * 0.48;
+    p.castShadow = true; p.receiveShadow = true;
+    _outerCoverGroup.add(p);
+});
+_outerCoverGroup.visible = false;
+scene.add(_outerCoverGroup);
+
 // Walker бүртгэл (АМЬТАН + ХҮН хөдөлгөөн) — эрт зарлах
 const _walkers = [];
 
@@ -4642,15 +4700,18 @@ window._resetGerForVR = function () {
     ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, false));
     ger.getTuurga().setVisible(-1, false);
     ger.getBvsluur().setVisible(-1, false);
+    // Дотор бүрээс + Гадна цагаан бүрээс
+    _innerFeltGroup.visible = false;
+    _outerCoverGroup.visible = false;
+    _innerFeltPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
+    _outerCoverPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
     // Анимацийн pos-ыг reset
     [...ger.getTuurga().getPanels(),
      ...ger.getBvsluur().getBands(),
      ger.parts['bagana'], ger.parts['toono'], ger.parts['roof']
     ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
-    // Унь bars-ыг scale-r reset
     const uniGrp = ger.parts['un'];
     if (uniGrp) uniGrp.children.forEach(b => b.scale.set(1, 1, 1));
-    // Хана reset fold
     ger.setKhanaFold(-1, 0.12);
 };
 
@@ -4697,21 +4758,21 @@ window.buildGer = function () {
 
     // 2. Хаалга
     setTimeout(() => ger.setPartVisibility('door', true), d);
-    d += 300;
+    d += 350;
 
-    // 3. Багана — доороос дээш
-    setTimeout(() => {
-        const o = ger.parts['bagana'], h = _getHome(o);
-        animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['bagana']));
-    }, d);
-    d += 600;
-
-    // 4. Тооно — дээрээс доош
+    // 3. Тооно — дээрээс доош (унь барихаас өмнө байна)
     setTimeout(() => {
         const o = ger.parts['toono'], h = _getHome(o);
         animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['toono']));
     }, d);
     d += 650;
+
+    // 4. Багана — доороос дээш (тооныг дэмжинэ)
+    setTimeout(() => {
+        const o = ger.parts['bagana'], h = _getHome(o);
+        animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['bagana']));
+    }, d);
+    d += 600;
 
     // 5. Унь — нэг нэгээр тойрон гарч ирнэ
     setTimeout(() => {
@@ -4745,25 +4806,65 @@ window.buildGer = function () {
     }, d);
     d += 18 * 52 + 400; // 52 уни × 18мс + дуусгахад 0.4сек
 
-    // 6. Туурга 1 & 2
-    setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, d);
-    d += 280;
-    setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, d);
-    d += 600;
+    // 6. Дотор бүрээс — 2 эсгий хэсэг (урд, ард)
+    setTimeout(() => {
+        _innerFeltGroup.visible = true;
+        _innerFeltPanels.forEach((p, i) => {
+            p.visible = true;
+            p.scale.y = 0.01;
+            const startT = performance.now();
+            const dur = 600;
+            const step = () => {
+                const t = Math.min(1, (performance.now() - startT) / dur);
+                const e = 1 - Math.pow(1 - t, 3);
+                p.scale.y = e;
+                if (t < 1) requestAnimationFrame(step);
+                else p.scale.y = 1;
+            };
+            setTimeout(step, i * 280);
+        });
+    }, d);
+    d += 280 * 2 + 600 + 200;
 
-    // 7. Бүслүүр 1-3
-    for (let i = 0; i < 3; i++) {
-        const idx = i;
-        setTimeout(() => { const b = ger.getBvsluur().getBands()[idx]; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, d + idx * 200);
-    }
-    d += 3 * 200 + 400;
-
-    // 8. Дээвэр — дээрээс доош
+    // 7. Дээвэр — дээрээс доош (эсгий дээвэр)
     setTimeout(() => {
         const o = ger.parts['roof']; ger.setPartVisibility('roof', true);
         animTo(o, _getHome(o), 0.9, _getHome(o).clone().add(new THREE.Vector3(0, 9, 0)));
     }, d);
-    d += 750;
+    d += 850;
+
+    // 8. Туурга 1 & 2 (урд, ард)
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, d);
+    d += 320;
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, d);
+    d += 700;
+
+    // 9. Гадна цагаан бүрээс — 2 эсгий
+    setTimeout(() => {
+        _outerCoverGroup.visible = true;
+        _outerCoverPanels.forEach((p, i) => {
+            p.visible = true;
+            p.scale.y = 0.01;
+            const startT = performance.now();
+            const dur = 700;
+            const step = () => {
+                const t = Math.min(1, (performance.now() - startT) / dur);
+                const e = 1 - Math.pow(1 - t, 3);
+                p.scale.y = e;
+                if (t < 1) requestAnimationFrame(step);
+                else p.scale.y = 1;
+            };
+            setTimeout(step, i * 320);
+        });
+    }, d);
+    d += 320 * 2 + 700 + 250;
+
+    // 10. Бүслүүр 1-3 — гадна бүрээсийг бэхэлнэ (хамгийн сүүлд)
+    for (let i = 0; i < 3; i++) {
+        const idx = i;
+        setTimeout(() => { const b = ger.getBvsluur().getBands()[idx]; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, d + idx * 220);
+    }
+    d += 3 * 220 + 400;
 
     // 9. Баталгаажуулалт — анимац дуусмагц БҮХ хэсгийг харуулна, checkbox-уудыг зөв болгоно
     setTimeout(() => {

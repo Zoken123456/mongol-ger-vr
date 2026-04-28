@@ -39,15 +39,17 @@ export class Bvsluur {
 
         yPos.forEach((y, i) => {
             const mat = new THREE.MeshStandardMaterial({
-                color: 0xE8901A, roughness: 0.82, metalness: 0.0
+                color: 0xE8901A, roughness: 0.82, metalness: 0.0, side: THREE.DoubleSide
             });
 
             const wrapper = new THREE.Group();
             wrapper.rotation.y = -da / 2;   // gap-г хаалганы +X байрлалд нийлүүлнэ
 
+            // Хавтгай туурганы дагуу нэхсэн бүс — нимгэн open-ended cylinder
             const band = new THREE.Mesh(
-                new THREE.TorusGeometry(R, 0.048, 10, 120, arc), mat);
-            band.rotation.x = Math.PI / 2;
+                new THREE.CylinderGeometry(R, R, 0.16, 60, 1, true,
+                                           0, arc),
+                mat);
             band.castShadow = true;
             band.userData.isClickMesh = true;
             wrapper.add(band);
