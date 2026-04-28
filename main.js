@@ -3215,6 +3215,18 @@ window.toggleAutoCycle = function () {
     if (btn) btn.textContent = _autoCycle ? '🕐 Auto OFF' : '🕐 Auto цаг';
 };
 
+// Slider-аар цагийг тохируулах
+window.setTimeOfDay = function (t) {
+    _autoCycle = false;
+    _timeOfDay = Math.max(0, Math.min(1, t));
+    _tickDayNight(0);
+    // Slider дагалдсан нар/сар icon
+    const left = document.getElementById('dn-icon-left');
+    const right = document.getElementById('dn-icon-right');
+    if (left)  left.textContent  = (_timeOfDay < 0.25 || _timeOfDay > 0.75) ? '🌙' : '🌅';
+    if (right) right.textContent = (_timeOfDay >= 0.4 && _timeOfDay < 0.6) ? '☀' : '🌇';
+};
+
 // ── Манан ────────────────────────────────────────────────────────
 window.toggleFog = function () {
     _fogOn = !_fogOn;
