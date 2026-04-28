@@ -1628,8 +1628,8 @@ function _makeFeltPanel(radius, wallH, doorAngle, panelIdx) {
 const _innerFeltGroup = new THREE.Group();
 _innerFeltGroup.name = 'inner-felt';
 const _innerFeltPanels = [
-    _makeFeltPanel(_GER_R - 0.05, _GER_WALL_H, _DOOR_ANGLE, 0),
-    _makeFeltPanel(_GER_R - 0.05, _GER_WALL_H, _DOOR_ANGLE, 1),
+    _makeFeltPanel(_GER_R - 0.18, _GER_WALL_H, _DOOR_ANGLE, 0),
+    _makeFeltPanel(_GER_R - 0.18, _GER_WALL_H, _DOOR_ANGLE, 1),
 ];
 _innerFeltPanels.forEach(p => _innerFeltGroup.add(p));
 _innerFeltGroup.visible = false;

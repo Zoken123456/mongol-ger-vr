@@ -31,20 +31,21 @@ export class Door {
         while (this.group.children.length)
             this.group.remove(this.group.children[0]);
 
-        const matRed  = new THREE.MeshStandardMaterial({ color: 0xCC0000, roughness: 0.6, metalness: 0.0 });
-        const matWood = new THREE.MeshStandardMaterial({ color: 0x8B3A0A, roughness: 0.75, metalness: 0.0 });
-        const matGold = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.3, metalness: 0.7 });
+        // Хүрээ улаан, навч ялгаатай тод хүрэн модон
+        const matFrame = new THREE.MeshStandardMaterial({ color: 0xC02818, roughness: 0.65, metalness: 0.0 });
+        const matWood  = new THREE.MeshStandardMaterial({ color: 0x5A2A10, roughness: 0.78, metalness: 0.0 });
+        const matGold  = new THREE.MeshStandardMaterial({ color: 0xE8B028, roughness: 0.35, metalness: 0.65 });
 
         const H = this.height;
         const W = this.width;
-        const thick = 0.12;   // хүрээний зузаан
-        const depth = 0.15;   // хүрээний гүн
+        const thick = 0.10;   // хүрээний зузаан (нимгэн)
+        const depth = 0.10;   // хүрээний гүн
 
-        // ── Зүүн, баруун тулгуур (хүрэ) ─────────────────────────
+        // ── Зүүн, баруун тулгуур ───────────────────────────────────
         [-W / 2 - thick / 2, W / 2 + thick / 2].forEach(x => {
             const post = new THREE.Mesh(
                 new THREE.BoxGeometry(thick, H + thick, depth),
-                matRed);
+                matFrame);
             post.position.set(x, H / 2, 0);
             post.castShadow = true;
             this.group.add(post);
@@ -52,17 +53,17 @@ export class Door {
 
         // ── Дээд тасалбар ─────────────────────────────────────────
         const lintel = new THREE.Mesh(
-            new THREE.BoxGeometry(W + thick * 2 + 0.06, thick, depth),
-            matRed);
+            new THREE.BoxGeometry(W + thick * 2 + 0.04, thick, depth),
+            matFrame);
         lintel.position.set(0, H + thick / 2, 0);
         lintel.castShadow = true;
         this.group.add(lintel);
 
-        // ── Босгон (доод) ──────────────────────────────────────────
+        // ── Босгон ──────────────────────────────────────────────────
         const sill = new THREE.Mesh(
-            new THREE.BoxGeometry(W + thick * 2 + 0.06, thick * 0.6, depth),
-            matRed);
-        sill.position.set(0, thick * 0.3, 0);
+            new THREE.BoxGeometry(W + thick * 2 + 0.04, thick * 0.5, depth),
+            matFrame);
+        sill.position.set(0, thick * 0.25, 0);
         sill.castShadow = true;
         this.group.add(sill);
 
@@ -71,11 +72,12 @@ export class Door {
         this._leaf = new THREE.Group();
         this._leaf.position.set(W / 2, 0, 0);
 
-        // Модон хавтан (навч)
+        // Модон хавтан (навч) — frame-аас илүү жижиг бөгөөд хүрэн өнгөтэй
         const panel = new THREE.Mesh(
-            new THREE.BoxGeometry(W, H - thick * 0.6, 0.07),
+            new THREE.BoxGeometry(W * 0.92, (H - thick * 0.6) * 0.96, 0.06),
             matWood);
-        panel.position.set(-W / 2, H / 2 + thick * 0.15, 0.01);
+        // frame-аас 0.08м гадагш товойж — Z-тал
+        panel.position.set(-W / 2, H / 2 + thick * 0.15, depth * 0.55);
         panel.castShadow = true;
         panel.receiveShadow = true;
         this._leaf.add(panel);
