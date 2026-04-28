@@ -712,7 +712,10 @@ class MongolianGer {
         const toonoR = 1.2;
 
         // ── 5 ХАНА ───────────────────────────────────────────────
-        const doorAngle   = Math.PI / 10;
+        // doorAngle-ийг хаалганы яг өргөнтэй таарахаар тооцоолно
+        // (frame нэмж 1.3м, R-0.05 радиус) — gap дотор хана/бүрээс бүгд яг хаалганд тулна
+        const doorWidth   = 1.1;
+        const doorAngle   = 2 * Math.asin((doorWidth + 0.18) / 2 / (R - 0.05)); // ≈ 0.262 rad
         const totalArc    = Math.PI * 2 - doorAngle;
         const arcPerPanel = totalArc / 5;
         let   currentAngle = doorAngle / 2;
@@ -1613,7 +1616,8 @@ scene.add(ger.getObject3D());
 // ── ДОТОР БҮРЭЭС (эсгийн дотор давхарга — 2 хэсэг урд/ард) ───────
 // Туурганаас бага зэрэг дотор талд, тагтай эсгий
 const _GER_R = 5, _GER_WALL_H = 4;
-const _DOOR_ANGLE = Math.PI / 10;
+// doorAngle-ийг ger class-тай адил тооцоолно (1.3м гадаргын өргөн / 4.95м радиус)
+const _DOOR_ANGLE = 2 * Math.asin((1.1 + 0.18) / 2 / (_GER_R - 0.05));
 const _innerFeltMat = new THREE.MeshStandardMaterial({
     color: 0xE8DAB0, roughness: 0.95, side: THREE.DoubleSide
 });
