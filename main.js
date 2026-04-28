@@ -5016,11 +5016,17 @@ function _unpossessPerson() {
 
 function _mountHorse(horse) {
     _ridingHorse = horse;
-    // Хүний камерыг морины эмээл дээр (унаач) тавина
-    const hp = new THREE.Vector3();
-    horse.getWorldPosition(hp);
-    // Адууны дэлээс өргөн (~1.6м) дээр уяач сууна
-    camera.position.set(hp.x, hp.y + 2.2, hp.z);
+    // Камерыг тухайн морины одоогийн чигт тааруулж урагш харна
+    // Морины local +X = толгой → world forward = (cos(rotY), -sin(rotY))
+    const a = horse.rotation.y;
+    const fwdX =  Math.cos(a);
+    const fwdZ = -Math.sin(a);
+    // Эмээлийн world байрлал
+    const sx = horse.position.x + fwdX * -0.1;
+    const sz = horse.position.z + fwdZ * -0.1;
+    camera.position.set(sx, horse.position.y + 2.45, sz);
+    // Толгойг урагш харуулах — морины толгой руу
+    camera.lookAt(sx + fwdX * 4, horse.position.y + 2.0, sz + fwdZ * 4);
     const hint = document.getElementById('walk-hint');
     if (hint) {
         hint.innerHTML = `<b style="color:#FFE9B0">Морь унаж байна</b> — ` +
@@ -5052,12 +5058,13 @@ window._tickRiding = function (delta) {
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
     dir.y = 0; dir.normalize();
-    // A/D — эргүүлэх (морины rotation бус, камерын чиг лөгцлөг)
-    // Морины rotation.y-ийг камерын чигтэй тааруулна
-    const targetRotY = Math.atan2(dir.x, dir.z);
+
+    // Морины модель: толгой нь local +X тэнхлэгт.
+    // Local +X-ийг dir рүү харуулах rotation: a = atan2(-dir.z, dir.x)
+    const targetRotY = Math.atan2(-dir.z, dir.x);
     horse.rotation.y = targetRotY;
 
-    // W урагш, S зогсох (хойш ч явуулж болно бага хурдаар)
+    // W урагш, S удаан хойш
     let speed = 0;
     if (move.w) speed = 7;
     else if (move.s) speed = -3;
@@ -5065,15 +5072,24 @@ window._tickRiding = function (delta) {
     if (speed !== 0) {
         horse.position.x += dir.x * speed * delta;
         horse.position.z += dir.z * speed * delta;
-        // Bob — морины биеийг дээш доош
-        horse.position.y = Math.abs(Math.sin(performance.now() * 0.012)) * 0.08;
+        // Гэлдрэх: биеийг дээш доош намсуулах + урагшаа бага зэрэг лугших
+        const t = performance.now() * 0.012;
+        horse.position.y = Math.abs(Math.sin(t)) * 0.08;
     } else {
         horse.position.y *= 0.9;
     }
-    // Камерыг морины дээр (саатна)
-    camera.position.x = horse.position.x;
-    camera.position.z = horse.position.z;
-    camera.position.y = horse.position.y + 2.2;
+
+    // Камерыг эмээлийн (saddle) дээр унаачийн нүдний түвшинд байрлуулна
+    // Saddle local ≈ (-0.05, 1.4, 0). Хүний толгой нэмэгдээд эх y ≈ 2.4
+    // Морины эргэлтэд тааруулсан seat-ийн world байрлал:
+    const seatLocalX = -0.1;       // эмээл бага зэрэг хойшоо
+    const cosA = Math.cos(targetRotY);
+    const sinA = Math.sin(targetRotY);
+    const sx = horse.position.x + cosA * seatLocalX;
+    const sz = horse.position.z - sinA * seatLocalX;
+    // Гэлдрэлийн bob дотор y-д нэмнэ
+    const bob = (speed !== 0) ? Math.sin(performance.now() * 0.024) * 0.04 : 0;
+    camera.position.set(sx, horse.position.y + 2.45 + bob, sz);
 };
 
 renderer.domElement.addEventListener('click', (ev) => {
