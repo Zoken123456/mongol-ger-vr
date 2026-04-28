@@ -5290,3 +5290,137 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
     renderer.domElement.style.cursor = kind ? 'pointer' : '';
 });
 
+// ══════════════════════════════════════════════════════════════════
+// ЗЭРЭГЛЭЭ — зэрлэг цэцэг, үүл, бүргэд (зургийн хэв маяг)
+// ══════════════════════════════════════════════════════════════════
+
+// Шар + цэнхэр зэрлэг цэцэг — instanced for performance
+(function addWildflowers() {
+    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xF4C820, roughness: 0.85, emissive: 0x553A00, emissiveIntensity: 0.15 });
+    const blueMat   = new THREE.MeshStandardMaterial({ color: 0x4060D0, roughness: 0.85, emissive: 0x102A55, emissiveIntensity: 0.15 });
+    const stemMat   = new THREE.MeshStandardMaterial({ color: 0x2A5A24, roughness: 0.9 });
+
+    const flowerGeo = new THREE.SphereGeometry(0.12, 6, 5);
+    const stemGeo   = new THREE.CylinderGeometry(0.012, 0.012, 0.2, 4);
+
+    const COUNT = 240;
+    const yellow = new THREE.InstancedMesh(flowerGeo, yellowMat, COUNT);
+    const blue   = new THREE.InstancedMesh(flowerGeo, blueMat,   COUNT);
+    const stems  = new THREE.InstancedMesh(stemGeo,   stemMat,   COUNT * 2);
+
+    const dummy = new THREE.Object3D();
+    let yi = 0, bi = 0, si = 0;
+    for (let i = 0; i < COUNT * 2; i++) {
+        // Гэрийн ойролцоо радиусаар тарж бай
+        const ang = Math.random() * Math.PI * 2;
+        const r   = 6 + Math.random() * 30;
+        const x = Math.cos(ang) * r;
+        const z = Math.sin(ang) * r;
+        // Уулны зам/гол дээр гарахаас зайлсхий — ойролцоо сорогноор bypass хий
+        if (Math.abs(z) < 1.5 && Math.abs(x) < 5) continue;
+
+        // Stem
+        dummy.position.set(x, 0.1, z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        stems.setMatrixAt(si++, dummy.matrix);
+        if (si >= stems.count) break;
+
+        // Flower head
+        dummy.position.set(x, 0.22, z);
+        dummy.scale.set(0.6 + Math.random() * 0.4, 0.4, 0.6 + Math.random() * 0.4);
+        dummy.updateMatrix();
+        if (Math.random() < 0.6) {
+            if (yi < yellow.count) { yellow.setMatrixAt(yi++, dummy.matrix); }
+        } else {
+            if (bi < blue.count) { blue.setMatrixAt(bi++, dummy.matrix); }
+        }
+    }
+    yellow.count = yi; blue.count = bi; stems.count = si;
+    yellow.instanceMatrix.needsUpdate = true;
+    blue.instanceMatrix.needsUpdate = true;
+    stems.instanceMatrix.needsUpdate = true;
+    scene.add(yellow, blue, stems);
+})();
+
+// Цагаан үүлс — горизонт дээр billboards
+(function addClouds() {
+    const cloudMat = new THREE.MeshStandardMaterial({
+        color: 0xFFFFFF, roughness: 1.0, metalness: 0,
+        transparent: true, opacity: 0.94, flatShading: true
+    });
+    const cloudGeo = new THREE.SphereGeometry(1, 8, 6);
+    const cloudGroup = new THREE.Group();
+    for (let i = 0; i < 20; i++) {
+        const cluster = new THREE.Group();
+        const ang = Math.random() * Math.PI * 2;
+        const r = 60 + Math.random() * 40;
+        const y = 28 + Math.random() * 12;
+        cluster.position.set(Math.cos(ang) * r, y, Math.sin(ang) * r);
+        // 3-5 бөмбөлгөөр нэг үүл хийнэ
+        const puffN = 4 + Math.floor(Math.random() * 3);
+        for (let p = 0; p < puffN; p++) {
+            const puff = new THREE.Mesh(cloudGeo, cloudMat);
+            puff.position.set(
+                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 1.5,
+                (Math.random() - 0.5) * 4
+            );
+            puff.scale.set(2 + Math.random() * 2, 1.2 + Math.random() * 0.6, 2 + Math.random() * 1.5);
+            cluster.add(puff);
+        }
+        cloudGroup.add(cluster);
+    }
+    scene.add(cloudGroup);
+    // Аажим хөдөлж бай
+    let _cloudT = 0;
+    setInterval(() => {
+        _cloudT += 0.008;
+        cloudGroup.children.forEach((c, i) => {
+            c.position.x += Math.sin(_cloudT + i) * 0.02;
+        });
+    }, 100);
+})();
+
+// Бүргэд — тэнгэрт нисэж тойрно
+function _createEagleSimple() {
+    const g = new THREE.Group();
+    const body = new THREE.MeshStandardMaterial({ color: 0x3A2410, roughness: 0.85 });
+    const head = new THREE.MeshStandardMaterial({ color: 0xE8D8A0, roughness: 0.8 });
+    const torso = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), body);
+    torso.scale.set(1.4, 0.65, 0.85); g.add(torso);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 8), head);
+    hd.position.set(0.78, 0.12, 0); g.add(hd);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.42), body);
+    tail.position.set(-0.78, 0, 0); g.add(tail);
+    const wmat = new THREE.MeshStandardMaterial({ color: 0x2A1808, roughness: 0.88, side: THREE.DoubleSide });
+    const wingL = new THREE.Group(); wingL.position.set(0, 0.05, 0.4);
+    const wingR = new THREE.Group(); wingR.position.set(0, 0.05, -0.4);
+    [wingL, wingR].forEach(w => {
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 1.5), wmat);
+        wing.position.set(-0.1, 0, w === wingL ? 0.75 : -0.75);
+        w.add(wing); g.add(w);
+    });
+    g.userData.wingL = wingL; g.userData.wingR = wingR;
+    g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    return g;
+}
+const _eagleVisual = _createEagleSimple();
+scene.add(_eagleVisual);
+window._tickEagleVisual = function (t) {
+    const r = 35, yBase = 16;
+    const a = t * 0.2;
+    _eagleVisual.position.set(Math.cos(a) * r, yBase + Math.sin(t * 0.5) * 1.5, Math.sin(a) * r);
+    _eagleVisual.rotation.y = -a + Math.PI / 2;
+    _eagleVisual.rotation.z = -0.18;
+    const flap = Math.sin(t * 5) * 0.55;
+    _eagleVisual.userData.wingL.rotation.x = flap;
+    _eagleVisual.userData.wingR.rotation.x = -flap;
+};
+let _eagleT = 0;
+setInterval(() => {
+    _eagleT += 0.05;
+    if (window._tickEagleVisual) window._tickEagleVisual(_eagleT);
+}, 50);
+
