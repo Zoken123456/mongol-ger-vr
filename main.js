@@ -4716,17 +4716,27 @@ window._resetGerForVR = function () {
 };
 
 window.buildGer = function () {
-    // Бүгдийг нуух
+    // Бүгдийг нуух — давталтгүй цэвэр эхлэл
     ger.setKhanaVisible(-1, false);
     ['door', 'bagana', 'toono', 'un'].forEach(id => ger.setPartVisibility(id, false));
     ger.getTuurga().setVisible(-1, false);
     ger.getBvsluur().setVisible(-1, false);
     ger.setPartVisibility('roof', false);
-    // Анимацийн байрлалыг reset
+    // ШИНЭ давхаргуудыг ч мөн нуух (өмнө нь reset хийгдэхгүй байсан)
+    _innerFeltGroup.visible = false;
+    _outerCoverGroup.visible = false;
+    _innerFeltPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
+    _outerCoverPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
+    // Унь bars-ыг reset (scale 1 болгох)
+    const _uniGrpReset = ger.parts['un'];
+    if (_uniGrpReset) _uniGrpReset.children.forEach(b => b.scale.set(1, 1, 1));
+    // Анимацийн байрлалыг reset (хагас явсан анимацийг таслана)
     [...ger.getTuurga().getPanels(),
      ...ger.getBvsluur().getBands(),
      ger.parts['bagana'], ger.parts['toono'], ger.parts['roof']
     ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
+    // Хана-г бүрэн эвхээстэй болгох
+    ger.setKhanaFold(-1, 0.08);
 
     let d = 200; // ms
 
