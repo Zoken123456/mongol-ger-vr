@@ -5291,50 +5291,7 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// НЭМЭЛТ ГЭРҮҮД — visual only (interactive биш, гадна талд)
-// ══════════════════════════════════════════════════════════════════
-function createSimpleGer(x, z, scaleN = 1) {
-    const grp = new THREE.Group();
-    const R = 4 * scaleN, H = 3.2 * scaleN;
-    // Цэнхэр хээ туурга — Tuurga texture-ийг ашиглана (дахин эх үүсгэхгүй)
-    // Энгийн cylinder + cone дээвэр
-    const tuurgaMat = new THREE.MeshStandardMaterial({ color: 0xF4EDD4, roughness: 0.92 });
-    const tuurga = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 24, 1, true), tuurgaMat);
-    tuurga.position.y = H / 2; grp.add(tuurga);
-    // Дээвэр (конус)
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0xF0E8C8, roughness: 0.9 });
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(R + 0.3, H * 0.55, 24), roofMat);
-    roof.position.y = H + H * 0.275; grp.add(roof);
-    // Дээврийн орой — улаан тооно
-    const ringMat = new THREE.MeshStandardMaterial({ color: 0xC04020, roughness: 0.6 });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45 * scaleN, 0.06, 6, 16), ringMat);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = H + H * 0.55 - 0.05; grp.add(ring);
-    // Цэнхэр зах туурга дээр
-    const blueMat = new THREE.MeshStandardMaterial({ color: 0x14337A, roughness: 0.7 });
-    const blueBand = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.02, R + 0.02, 0.35, 24, 1, true), blueMat);
-    blueBand.position.y = H - 0.2; grp.add(blueBand);
-    // Улаан хаалга
-    const doorMat = new THREE.MeshStandardMaterial({ color: 0xC83020, roughness: 0.7 });
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.9 * scaleN, 1.6 * scaleN, 0.1), doorMat);
-    door.position.set(R + 0.05, 0.8 * scaleN, 0); grp.add(door);
-    // Бүслүүр (3 ширхэг)
-    const beltMat = new THREE.MeshStandardMaterial({ color: 0xE89030, roughness: 0.8 });
-    [0.25, 0.5, 0.75].forEach(t => {
-        const belt = new THREE.Mesh(new THREE.TorusGeometry(R + 0.04, 0.03, 6, 24), beltMat);
-        belt.rotation.x = Math.PI / 2;
-        belt.position.y = H * t; grp.add(belt);
-    });
-    grp.position.set(x, 0, z);
-    grp.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
-    return grp;
-}
-// 2 нэмэлт гэр гол гэрийн хажууд
-scene.add(createSimpleGer(-7, -2, 0.9));
-scene.add(createSimpleGer(7, -3, 0.85));
-
-// ══════════════════════════════════════════════════════════════════
-// ДАЛБАА СҮЛЖИХ — гэрүүд хооронд төвд тулгуур + олон өнгийн далбаа
+// ДАЛБАА СҮЛЖИХ — гол гэрийг тойрсон тулгуур + олон өнгийн далбаа
 // ══════════════════════════════════════════════════════════════════
 (function addPrayerFlags() {
     const grp = new THREE.Group();
