@@ -914,7 +914,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 0.85;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 // ── PMREM IBL орчны гэрэлтүүлэг — PBR материалд бодит харагдалт өгнө ──
@@ -923,7 +923,7 @@ _pmrem.compileEquirectangularShader();
 const _envScene = new RoomEnvironment();
 const _envTex = _pmrem.fromScene(_envScene, 0.04).texture;
 scene.environment = _envTex;
-scene.environmentIntensity = 0.6;  // нар + амбиент гэрэлтэй уялдуулан балансладаг
+scene.environmentIntensity = 0.18;  // нар + амбиент гэрэлтэй уялдуулан балансладаг
 
 // ── VR ТОХИРГОО ─────────────────────────────────────────────────
 renderer.xr.enabled = true;
@@ -938,9 +938,9 @@ function _initComposer(cam) {
     _composer.addPass(new RenderPass(scene, cam));
     const _bloom = new UnrealBloomPass(
         new THREE.Vector2(innerWidth, innerHeight),
-        0.45,   // strength
-        0.6,    // radius
-        0.82    // threshold (зөвхөн тод хэсгүүд)
+        0.18,   // strength — зөвхөн гал/нар-ыг гэрэлтүүлнэ
+        0.5,    // radius
+        0.95    // threshold (маш тод хэсгүүд гэрэлтэнэ)
     );
     _composer.addPass(_bloom);
     _composer.addPass(new OutputPass());
