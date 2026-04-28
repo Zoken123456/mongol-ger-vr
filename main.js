@@ -1733,7 +1733,10 @@ const _ropeH   = 1.55;
     { x: 13.8, color: 0x3A2010, blanket: true  },
     { x: 16.0, color: 0x9A5828, blanket: false },
 ].forEach(({ x, color, blanket }) => {
-    scene.add(createHorse(x, 22.5, Math.PI, color, blanket));
+    const horse = createHorse(x, 22.5, Math.PI, color, blanket);
+    horse.userData.isHorse = true;
+    horse.userData.hasSaddle = blanket;
+    scene.add(horse);
     // Унжилт олс (уяанаас морины толгой хүртэл)
     const dr = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.3, 6), _ropeM);
     dr.position.set(x, _ropeH - 0.65, 20.8);
@@ -3382,7 +3385,7 @@ const _grazeHorses = [
     createHorse(-34,  8,  2.0, 0x3A2010),
     createHorse(-26, 26, -0.4, 0xB07040),
 ];
-_grazeHorses.forEach(h => scene.add(h));
+_grazeHorses.forEach(h => { h.userData.isHorse = true; scene.add(h); });
 addWalker(_grazeHorses[0], [
     {x:-28,z:-8},{x:-36,z:2},{x:-42,z:-4},{x:-34,z:-16},{x:-24,z:-12}], 1.4);
 addWalker(_grazeHorses[1], [
@@ -4049,6 +4052,8 @@ const _oldMan = createMongolInhabitant(0x4A4A50, 0x8B7D30, 0xC08060, {
 _oldMan.position.set(-13.8, 0, -3.0);
 scene.add(_oldMan);
 const _tetherHorse = createHorse(-15.5, -3.0, -Math.PI / 2, 0x5A3420, true);
+_tetherHorse.userData.isHorse = true;
+_tetherHorse.userData.hasSaddle = true;
 scene.add(_tetherHorse);
 addInhabitant(_oldMan, [
     { x: -13.8, z: -3.0, type: 'activity', face: { x: -15.5, z: -3.0 }, activity: poseTieHorse, wait: Infinity }
@@ -4145,8 +4150,9 @@ renderer.setAnimationLoop((timestamp) => {
     _pollVRMenuToggle();
     _tickVRMenuHeadLock();
     _tickVRControllers();
+    if (window._tickRiding) window._tickRiding(delta);
 
-    if (isWalking && walkControls.isLocked) {
+    if (isWalking && walkControls.isLocked && !_ridingHorse) {
         const speed = 4;
         const dir = new THREE.Vector3();
         camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
@@ -4916,35 +4922,71 @@ window.addEventListener('resize', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// HVN DEERE DARH — first-person possess
-//   • Хүн дээр хулганаар дарахад түүний дотор орж first-person руу шилжинэ
-//   • WASD-ээр явна, хулганаар хардаг, ESC-ээр гарна
+// HVN DEERE DARH — first-person possess + морь дээр унаж явах
+//   • Хүн дээр дарахад түүний дотор орж first-person руу шилжинэ
+//   • Гар нь camera-д наалдаж урдаас харагдана
+//   • Морь дээр дарахад морин дээр сууна, WASD = хатируулах
+//   • ESC-ээр гарна
 // ══════════════════════════════════════════════════════════════════
 let _possessedPerson = null;
+let _ridingHorse     = null;
 const _possessRC  = new THREE.Raycaster();
 const _possessNDC = new THREE.Vector2();
 
-function _findPersonAncestor(obj) {
+function _findAncestorWithFlag(obj, flag) {
     let n = obj;
     while (n) {
-        if (n.userData && n.userData.isPerson) return n;
+        if (n.userData && n.userData[flag]) return n;
         n = n.parent;
     }
     return null;
 }
+const _findPersonAncestor = (o) => _findAncestorWithFlag(o, 'isPerson');
+const _findHorseAncestor  = (o) => _findAncestorWithFlag(o, 'isHorse');
+
+// First-person camera rig — гарууд camera-тай хамт хөдөлнө
+const _fpRig = new THREE.Group();
+function _buildFpHands(coatColor) {
+    while (_fpRig.children.length) _fpRig.remove(_fpRig.children[0]);
+    const skin = new THREE.MeshStandardMaterial({ color: 0xE2B382, roughness: 0.85 });
+    const coat = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.78 });
+    const cuff = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(coatColor).multiplyScalar(0.65), roughness: 0.8
+    });
+    // Хоёр гарын ханцуй — урагшаа уртассан
+    [-1, 1].forEach(side => {
+        const arm = new THREE.Group();
+        arm.position.set(side * 0.18, -0.22, -0.45);
+        arm.rotation.x = -0.55;
+        const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.32), coat);
+        sleeve.position.z = 0.05; arm.add(sleeve);
+        const cuffM = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.05), cuff);
+        cuffM.position.z = 0.22; arm.add(cuffM);
+        const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skin);
+        hand.position.z = 0.26; arm.add(hand);
+        arm.userData.side = side;
+        _fpRig.add(arm);
+    });
+}
+camera.add(_fpRig);
+scene.add(camera);
+_fpRig.visible = false;
 
 function _possessPerson(person) {
     if (!person) return;
     _possessedPerson = person;
-    // Эзэмшсэн хүнийг түр нуух — дотор нь байна
     person.visible = false;
 
-    // Камерыг тухайн хүний толгой рүү байрлуул
+    // Гар-ийн өнгө — тухайн хүний deel-тэй тааруулна (skirt-ийн мат-аас)
+    const skirtMesh = person.children.find(c => c.geometry && c.geometry.type === 'CylinderGeometry');
+    const coatColor = skirtMesh ? skirtMesh.material.color.getHex() : 0x6A4A28;
+    _buildFpHands(coatColor);
+    _fpRig.visible = true;
+
     const wp = new THREE.Vector3();
     person.getWorldPosition(wp);
     camera.position.set(wp.x, wp.y + 1.55, wp.z);
 
-    // Хүний харагдах чигийг урагшаа болго
     const fwd = new THREE.Vector3(Math.cos(person.rotation.y - Math.PI / 2), 0,
                                   Math.sin(person.rotation.y - Math.PI / 2));
     camera.lookAt(wp.x + fwd.x, wp.y + 1.55, wp.z + fwd.z);
@@ -4953,30 +4995,89 @@ function _possessPerson(person) {
     isWalking = true;
     walkControls.lock();
 
-    // Hint харуулах
     const hint = document.getElementById('walk-hint');
     if (hint) {
         hint.innerHTML = `<b style="color:#FFE9B0">${person.userData.personLabel}</b> — ` +
             `<span class="kbd">WASD</span> явах · ` +
             `<span class="kbd">Хулгана</span> харах · ` +
+            `<span class="kbd">Морь дээр дар</span> унах · ` +
             `<span class="kbd">ESC</span> гарах`;
         hint.style.display = 'block';
     }
 }
 
 function _unpossessPerson() {
+    if (_ridingHorse) _dismountHorse();
     if (!_possessedPerson) return;
     _possessedPerson.visible = true;
     _possessedPerson = null;
+    _fpRig.visible = false;
+}
+
+function _mountHorse(horse) {
+    _ridingHorse = horse;
+    // Хүний камерыг морины эмээл дээр (унаач) тавина
+    const hp = new THREE.Vector3();
+    horse.getWorldPosition(hp);
+    // Адууны дэлээс өргөн (~1.6м) дээр уяач сууна
+    camera.position.set(hp.x, hp.y + 2.2, hp.z);
+    const hint = document.getElementById('walk-hint');
+    if (hint) {
+        hint.innerHTML = `<b style="color:#FFE9B0">Морь унаж байна</b> — ` +
+            `<span class="kbd">W</span> урагш · ` +
+            `<span class="kbd">A/D</span> эргэх · ` +
+            `<span class="kbd">S</span> зогсох · ` +
+            `<span class="kbd">ESC</span> буух`;
+    }
+}
+
+function _dismountHorse() {
+    if (!_ridingHorse) return;
+    const hp = new THREE.Vector3();
+    _ridingHorse.getWorldPosition(hp);
+    // Морины хажууд буух
+    camera.position.set(hp.x + 1.5, 1.6, hp.z);
+    _ridingHorse = null;
 }
 
 walkControls.addEventListener('unlock', () => {
     if (_possessedPerson) _unpossessPerson();
 });
 
+// Морь анимаци + хяналт — animation loop-д дуудна
+window._tickRiding = function (delta) {
+    if (!_ridingHorse) return;
+    const horse = _ridingHorse;
+    // Камерын урагшаа чигийг авах (Y=0)
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.y = 0; dir.normalize();
+    // A/D — эргүүлэх (морины rotation бус, камерын чиг лөгцлөг)
+    // Морины rotation.y-ийг камерын чигтэй тааруулна
+    const targetRotY = Math.atan2(dir.x, dir.z);
+    horse.rotation.y = targetRotY;
+
+    // W урагш, S зогсох (хойш ч явуулж болно бага хурдаар)
+    let speed = 0;
+    if (move.w) speed = 7;
+    else if (move.s) speed = -3;
+
+    if (speed !== 0) {
+        horse.position.x += dir.x * speed * delta;
+        horse.position.z += dir.z * speed * delta;
+        // Bob — морины биеийг дээш доош
+        horse.position.y = Math.abs(Math.sin(performance.now() * 0.012)) * 0.08;
+    } else {
+        horse.position.y *= 0.9;
+    }
+    // Камерыг морины дээр (саатна)
+    camera.position.x = horse.position.x;
+    camera.position.z = horse.position.z;
+    camera.position.y = horse.position.y + 2.2;
+};
+
 renderer.domElement.addEventListener('click', (ev) => {
-    if (_learnMode) return;            // суралцах горимд click нь өөр зорилгоор ашиглагдана
-    if (isWalking) return;             // аль хэдийн алхаж байгаа бол click ашиглахгүй
+    if (_learnMode) return;
     if (renderer.xr.isPresenting) return;
 
     const rect = renderer.domElement.getBoundingClientRect();
@@ -4984,25 +5085,33 @@ renderer.domElement.addEventListener('click', (ev) => {
     _possessNDC.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
     _possessRC.setFromCamera(_possessNDC, camera);
     const hits = _possessRC.intersectObjects(scene.children, true);
+
     for (const h of hits) {
-        const person = _findPersonAncestor(h.object);
-        if (person) {
-            _possessPerson(person);
-            return;
+        // Хүн дарвал → possess
+        if (!_possessedPerson) {
+            const person = _findPersonAncestor(h.object);
+            if (person) { _possessPerson(person); return; }
+        }
+        // Хэрэв possessed бол морь дарвал → mount
+        if (_possessedPerson && !_ridingHorse) {
+            const horse = _findHorseAncestor(h.object);
+            if (horse) { _mountHorse(horse); return; }
         }
     }
 });
 
-// Хулганы курсорыг хүн дээр очвол pointer хэлбэртэй болгоно
 renderer.domElement.addEventListener('mousemove', (ev) => {
-    if (_learnMode || isWalking || renderer.xr.isPresenting) return;
+    if (_learnMode || renderer.xr.isPresenting) return;
+    if (isWalking) return;
     const rect = renderer.domElement.getBoundingClientRect();
     _possessNDC.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     _possessNDC.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
     _possessRC.setFromCamera(_possessNDC, camera);
     const hits = _possessRC.intersectObjects(scene.children, true);
-    let onPerson = false;
-    for (const h of hits) { if (_findPersonAncestor(h.object)) { onPerson = true; break; } }
-    renderer.domElement.style.cursor = onPerson ? 'pointer' : '';
+    let kind = '';
+    for (const h of hits) {
+        if (_findPersonAncestor(h.object)) { kind = 'person'; break; }
+    }
+    renderer.domElement.style.cursor = kind ? 'pointer' : '';
 });
 
