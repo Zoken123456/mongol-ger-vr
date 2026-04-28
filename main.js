@@ -4669,21 +4669,31 @@ window.buildGer = function () {
 
     let d = 200; // ms
 
-    // 1. Хана 1-5 — нэг нэгээр эвдэрнэ
+    // 1. Хана 1-5 — эвхээстэй байгаад нэг нэгээр зөөлөн дэлгэгдэнэ (ease-out cubic)
+    const KHANA_DUR = 1100;          // нэг ханын дэлгэгдэх хугацаа (мс)
+    const KHANA_GAP = 480;           // дараагийн хана эхлэх зай (мс)
     for (let i = 0; i < 5; i++) {
         const idx = i;
         setTimeout(() => {
+            // Эхлээд хана харагдана, бүрэн эвхээстэй
             ger.setKhanaVisible(idx, true);
-            ger.setKhanaFold(idx, 0.12);
-            let r = 0.12;
-            const tid = setInterval(() => {
-                r = Math.min(1.0, r + 0.03);
-                ger.setKhanaFold(idx, r);
-                if (r >= 1.0) clearInterval(tid);
-            }, 28);
-        }, d + idx * 420);
+            ger.setKhanaFold(idx, 0.08);
+            const start = performance.now();
+            const step = () => {
+                const t = Math.min(1, (performance.now() - start) / KHANA_DUR);
+                // EaseOutCubic — байгалийн эвхээс
+                const e = 1 - Math.pow(1 - t, 3);
+                // Бага зэрэг overshoot — дэлгэснийхээ дараа арай эргэн нэгдэх
+                const overshoot = Math.sin(t * Math.PI) * 0.04;
+                const r = 0.08 + (1.0 - 0.08) * e + overshoot;
+                ger.setKhanaFold(idx, Math.min(1.04, r));
+                if (t < 1) requestAnimationFrame(step);
+                else ger.setKhanaFold(idx, 1.0);  // эцсийн утга
+            };
+            step();
+        }, d + idx * KHANA_GAP);
     }
-    d += 5 * 420 + 350;
+    d += 5 * KHANA_GAP + KHANA_DUR + 200;
 
     // 2. Хаалга
     setTimeout(() => ger.setPartVisibility('door', true), d);
