@@ -2741,11 +2741,16 @@ scene.add(createOxCart(10, 4, Math.PI * 0.15));
 
 // Хүмүүс — уяаны дэргэд
 // Эрэгтэй — хүрэн deel
-scene.add(createPerson(15.5, 19.5, Math.PI + 0.15, false, 0x6A4A28));
+const _personMan   = createPerson(15.5, 19.5, Math.PI + 0.15, false, 0x6A4A28);
 // Эмэгтэй — хөх deel (монгол уламжлалт)
-scene.add(createPerson(20.5, 19.2, Math.PI - 0.2,  false, 0x2A4878));
+const _personWoman = createPerson(20.5, 19.2, Math.PI - 0.2,  false, 0x2A4878);
 // Хүүхэд — улбар шар deel
-scene.add(createPerson(18.0, 14.8, Math.PI + 0.4,  true,  0xB56428));
+const _personChild = createPerson(18.0, 14.8, Math.PI + 0.4,  true,  0xB56428);
+[_personMan, _personWoman, _personChild].forEach(p => {
+    p.userData.isPerson  = true;
+    p.userData.personLabel = p === _personChild ? 'Хүүхэд' : (p === _personWoman ? 'Эмэгтэй' : 'Эрэгтэй');
+    scene.add(p);
+});
 
 // ══════════════════════════════════════════════════════════════════
 // ЦАГ АГААР — өдөр/шөнө, бороо, цас, манан
@@ -3895,6 +3900,8 @@ function _tickInhabitants(dt) {
 // ── Гэрийн дотор амьдардаг ахуу ─────────────────────────────────
 const _gerMan = createMongolInhabitant(0x8A1D22, 0xE6B428, 0xC98D5B);
 _gerMan.position.set(2.4, 0, 1.7);
+_gerMan.userData.isPerson = true;
+_gerMan.userData.personLabel = 'Гэрийн эзэн';
 scene.add(_gerMan);
 
 // Гал зуухыг тойрсон зам — 3 суудал + 3 явах цэг
@@ -4906,5 +4913,96 @@ window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// HVN DEERE DARH — first-person possess
+//   • Хүн дээр хулганаар дарахад түүний дотор орж first-person руу шилжинэ
+//   • WASD-ээр явна, хулганаар хардаг, ESC-ээр гарна
+// ══════════════════════════════════════════════════════════════════
+let _possessedPerson = null;
+const _possessRC  = new THREE.Raycaster();
+const _possessNDC = new THREE.Vector2();
+
+function _findPersonAncestor(obj) {
+    let n = obj;
+    while (n) {
+        if (n.userData && n.userData.isPerson) return n;
+        n = n.parent;
+    }
+    return null;
+}
+
+function _possessPerson(person) {
+    if (!person) return;
+    _possessedPerson = person;
+    // Эзэмшсэн хүнийг түр нуух — дотор нь байна
+    person.visible = false;
+
+    // Камерыг тухайн хүний толгой рүү байрлуул
+    const wp = new THREE.Vector3();
+    person.getWorldPosition(wp);
+    camera.position.set(wp.x, wp.y + 1.55, wp.z);
+
+    // Хүний харагдах чигийг урагшаа болго
+    const fwd = new THREE.Vector3(Math.cos(person.rotation.y - Math.PI / 2), 0,
+                                  Math.sin(person.rotation.y - Math.PI / 2));
+    camera.lookAt(wp.x + fwd.x, wp.y + 1.55, wp.z + fwd.z);
+
+    controls.enabled = false;
+    isWalking = true;
+    walkControls.lock();
+
+    // Hint харуулах
+    const hint = document.getElementById('walk-hint');
+    if (hint) {
+        hint.innerHTML = `<b style="color:#FFE9B0">${person.userData.personLabel}</b> — ` +
+            `<span class="kbd">WASD</span> явах · ` +
+            `<span class="kbd">Хулгана</span> харах · ` +
+            `<span class="kbd">ESC</span> гарах`;
+        hint.style.display = 'block';
+    }
+}
+
+function _unpossessPerson() {
+    if (!_possessedPerson) return;
+    _possessedPerson.visible = true;
+    _possessedPerson = null;
+}
+
+walkControls.addEventListener('unlock', () => {
+    if (_possessedPerson) _unpossessPerson();
+});
+
+renderer.domElement.addEventListener('click', (ev) => {
+    if (_learnMode) return;            // суралцах горимд click нь өөр зорилгоор ашиглагдана
+    if (isWalking) return;             // аль хэдийн алхаж байгаа бол click ашиглахгүй
+    if (renderer.xr.isPresenting) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    _possessNDC.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    _possessNDC.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    _possessRC.setFromCamera(_possessNDC, camera);
+    const hits = _possessRC.intersectObjects(scene.children, true);
+    for (const h of hits) {
+        const person = _findPersonAncestor(h.object);
+        if (person) {
+            _possessPerson(person);
+            return;
+        }
+    }
+});
+
+// Хулганы курсорыг хүн дээр очвол pointer хэлбэртэй болгоно
+renderer.domElement.addEventListener('mousemove', (ev) => {
+    if (_learnMode || isWalking || renderer.xr.isPresenting) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    _possessNDC.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    _possessNDC.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    _possessRC.setFromCamera(_possessNDC, camera);
+    const hits = _possessRC.intersectObjects(scene.children, true);
+    let onPerson = false;
+    for (const h of hits) { if (_findPersonAncestor(h.object)) { onPerson = true; break; } }
+    renderer.domElement.style.cursor = onPerson ? 'pointer' : '';
 });
 
