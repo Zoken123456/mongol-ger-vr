@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
 // ── Classes-ийн import ───────────────────────────────────────────
 import { Khana }   from './classes/khana.js';
@@ -961,11 +962,16 @@ const _ColorGradeShader = {
             c.rgb = mix(vec3(l), c.rgb, saturation);
             // Contrast
             c.rgb = (c.rgb - 0.5) * contrast + 0.5;
-            // Warm tint
+            // Сүүдэрт цэнхэр (cool shadows), highlight-д дулаан (warm highlights) — кино cinematic look
+            vec3 coolShadow = vec3(0.93, 0.98, 1.10);
+            vec3 warmHi     = vec3(1.06, 0.99, 0.92);
+            float shadowMix = smoothstep(0.55, 0.0, l);  // 1=shadow, 0=highlight
+            c.rgb *= mix(warmHi, coolShadow, shadowMix);
+            // Дулаан tint
             c.rgb *= warmth;
-            // Vignette зөөлөн
+            // Vignette
             float d = length(vUv - 0.5);
-            c.rgb *= 1.0 - smoothstep(0.45, 0.85, d) * 0.18;
+            c.rgb *= 1.0 - smoothstep(0.45, 0.92, d) * 0.22;
             gl_FragColor = c;
         }
     `,
@@ -990,6 +996,9 @@ function _initComposer(cam) {
     _composer.addPass(_bloom);
     // Color grading
     _composer.addPass(new ShaderPass(_ColorGradeShader));
+    // SMAA — ирмэг зөөлрүүлэх (anti-aliasing)
+    _composer.addPass(new SMAAPass(innerWidth * renderer.getPixelRatio(),
+                                    innerHeight * renderer.getPixelRatio()));
     // Output
     _composer.addPass(new OutputPass());
 }
@@ -5608,6 +5617,55 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
             c.position.x += Math.sin(_cloudT + i) * 0.02;
         });
     }, 100);
+})();
+
+// Алсын силуэт мод/хад — горизонтыг дүүргэх
+(function addDistantSilhouettes() {
+    const grp = new THREE.Group();
+    const darkGreen = new THREE.MeshStandardMaterial({
+        color: 0x1A3818, roughness: 0.95, flatShading: true
+    });
+    const grayRock = new THREE.MeshStandardMaterial({
+        color: 0x46443E, roughness: 0.96, flatShading: true
+    });
+    // ~85м-д тойрсон 28 силуэт (гацуур + хад холимог)
+    for (let i = 0; i < 28; i++) {
+        const ang = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
+        const r = 80 + Math.random() * 18;
+        const x = Math.cos(ang) * r;
+        const z = Math.sin(ang) * r;
+        if (Math.random() < 0.7) {
+            // Гацуур — өндөр конус
+            const h = 6 + Math.random() * 5;
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.18, 0.24, h * 0.35, 6),
+                new THREE.MeshStandardMaterial({ color: 0x3A2210, roughness: 0.92 })
+            );
+            trunk.position.set(x, h * 0.175, z);
+            grp.add(trunk);
+            // 3 давхар нарс
+            for (let j = 0; j < 3; j++) {
+                const cone = new THREE.Mesh(
+                    new THREE.ConeGeometry(h * 0.32 - j * 0.08, h * 0.45 - j * 0.05, 6),
+                    darkGreen
+                );
+                cone.position.set(x, h * 0.4 + j * h * 0.22, z);
+                grp.add(cone);
+            }
+        } else {
+            // Хад асга — чулуун олон сегмент
+            const h = 2 + Math.random() * 2.5;
+            const rock = new THREE.Mesh(
+                new THREE.DodecahedronGeometry(1.4 + Math.random() * 0.6, 0),
+                grayRock
+            );
+            rock.scale.set(1.2, h, 1.2);
+            rock.position.set(x, h * 0.5, z);
+            rock.rotation.y = Math.random() * Math.PI;
+            grp.add(rock);
+        }
+    }
+    scene.add(grp);
 })();
 
 // Газрын шороотой/халцарсан толбо — Ground painting (гэр, хашаа орчмын элэгдэл)
