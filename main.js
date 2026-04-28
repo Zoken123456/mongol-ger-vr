@@ -18,6 +18,120 @@ import { Tuurga }  from './classes/tuurga.js';
 import { Bvsluur } from './classes/bvsluur.js';
 
 // ══════════════════════════════════════════════════════════════════
+// PROCEDURAL TEXTURE HELPERS — noise-based normal/roughness maps
+// ══════════════════════════════════════════════════════════════════
+function _genNoiseCanvas(size, octaves, persist) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    // Simple value noise (multi-octave Math.random + smooth)
+    function rand2(x, y) {
+        const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        return s - Math.floor(s);
+    }
+    function smooth(x, y, freq) {
+        const ix = Math.floor(x * freq), iy = Math.floor(y * freq);
+        const fx = x * freq - ix, fy = y * freq - iy;
+        const v00 = rand2(ix, iy);
+        const v10 = rand2(ix + 1, iy);
+        const v01 = rand2(ix, iy + 1);
+        const v11 = rand2(ix + 1, iy + 1);
+        const u = fx * fx * (3 - 2 * fx);
+        const v = fy * fy * (3 - 2 * fy);
+        return (v00 * (1 - u) + v10 * u) * (1 - v) + (v01 * (1 - u) + v11 * u) * v;
+    }
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            let n = 0, amp = 1, freqMul = 1, total = 0;
+            for (let o = 0; o < octaves; o++) {
+                n += smooth(x / size, y / size, 8 * freqMul) * amp;
+                total += amp;
+                amp *= persist;
+                freqMul *= 2;
+            }
+            n /= total;
+            const v = Math.floor(n * 255);
+            const i = (y * size + x) * 4;
+            data[i] = data[i+1] = data[i+2] = v;
+            data[i+3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    return cv;
+}
+
+// Сүлжсэн ноостой texture (ноосон normal + жижиг variation)
+function _makeWoolTextures() {
+    const size = 256;
+    const noise = _genNoiseCanvas(size, 4, 0.55);
+    const cdata = noise.getContext('2d').getImageData(0, 0, size, size).data;
+    // Нормал map
+    const normCv = document.createElement('canvas');
+    normCv.width = normCv.height = size;
+    const nctx = normCv.getContext('2d');
+    const normImg = nctx.createImageData(size, size);
+    const nd = normImg.data;
+    const strength = 2.5;
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const i = (y * size + x) * 4;
+            const xp = ((y * size + Math.min(x+1, size-1)) * 4);
+            const xm = ((y * size + Math.max(x-1, 0)) * 4);
+            const yp = ((Math.min(y+1, size-1) * size + x) * 4);
+            const ym = ((Math.max(y-1, 0) * size + x) * 4);
+            const dx = (cdata[xp] - cdata[xm]) / 255 * strength;
+            const dy = (cdata[yp] - cdata[ym]) / 255 * strength;
+            const len = Math.sqrt(dx*dx + dy*dy + 1);
+            nd[i]   = (-dx / len * 0.5 + 0.5) * 255;
+            nd[i+1] = (-dy / len * 0.5 + 0.5) * 255;
+            nd[i+2] = (1   / len * 0.5 + 0.5) * 255;
+            nd[i+3] = 255;
+        }
+    }
+    nctx.putImageData(normImg, 0, 0);
+    const norm = new THREE.CanvasTexture(normCv);
+    norm.wrapS = norm.wrapT = THREE.RepeatWrapping;
+    norm.repeat.set(2, 2);
+    // Roughness map (ноос бараг бүгд rough)
+    const rough = new THREE.CanvasTexture(noise);
+    rough.wrapS = rough.wrapT = THREE.RepeatWrapping;
+    rough.repeat.set(2, 2);
+    return { normalMap: norm, roughnessMap: rough };
+}
+
+// Модны grain — нарийн босоо зураастай
+function _makeWoodTextures() {
+    const w = 256, h = 256;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            // Босоо grain (Y-аар лагшилсан) + санамсаргүй жижиг variation
+            const base = 0.5 + 0.4 * Math.sin(y * 0.18 + Math.sin(x * 0.04) * 1.2);
+            const noise = (Math.random() - 0.5) * 0.15;
+            const v = Math.max(0, Math.min(1, base + noise));
+            const i = (y * w + x) * 4;
+            d[i] = d[i+1] = d[i+2] = Math.floor(v * 255);
+            d[i+3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1, 2);
+    return { roughnessMap: t };
+}
+
+// Globals (хойно ашиглана)
+const _woolMaps = _makeWoolTextures();
+const _woodMaps = _makeWoodTextures();
+
+// ══════════════════════════════════════════════════════════════════
 // MINECRAFT-STYLE PIXEL TEXTURES
 // ══════════════════════════════════════════════════════════════════
 function _mkTex(fn, size = 16) {
@@ -1566,8 +1680,15 @@ function createHorse(x, z, rotY = 0, color = 0x6B3A2A, hasBlanket = false) {
 
 function createSheep(x, z, rotY = 0) {
     const g    = new THREE.Group();
-    const wool  = new THREE.MeshStandardMaterial({ color: 0xF2EFE4, roughness: 0.98, flatShading: true });
-    const woolD = new THREE.MeshStandardMaterial({ color: 0xDCD6C2, roughness: 0.98, flatShading: true });
+    const wool  = new THREE.MeshStandardMaterial({
+        color: 0xF2EFE4, roughness: 0.96, flatShading: true,
+        normalMap: _woolMaps.normalMap, roughnessMap: _woolMaps.roughnessMap,
+        normalScale: new THREE.Vector2(0.6, 0.6)
+    });
+    const woolD = new THREE.MeshStandardMaterial({
+        color: 0xDCD6C2, roughness: 0.96, flatShading: true,
+        normalMap: _woolMaps.normalMap, normalScale: new THREE.Vector2(0.5, 0.5)
+    });
     const skin  = new THREE.MeshStandardMaterial({ color: 0xB08868, roughness: 0.9 });
     const dark  = new THREE.MeshStandardMaterial({ color: 0x1A100A, roughness: 0.88 });
 
