@@ -108,35 +108,35 @@
             letter-spacing: 0;
         }
 
-        /* Minecraft-style button */
+        /* Modern glass button */
         button {
             margin-top: 6px;
-            padding: 9px 6px;
+            padding: 9px 8px;
             width: 100%;
-            border: none;
-            border-bottom: 3px solid #1A1A1A;
-            border-right: 3px solid #1A1A1A;
-            border-top: 2px solid #CCCCCC;
-            border-left: 2px solid #CCCCCC;
-            background: #555555;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 8px;
+            background: rgba(60, 64, 76, 0.55);
             color: #FFFFFF;
             font-family: 'Noto Sans', 'Segoe UI', sans-serif;
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
-            text-shadow: 1px 1px 0 #1A1A1A;
-            image-rendering: pixelated;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: all 0.18s ease;
         }
         button:hover {
-            background: #666666;
-            color: #FFFF55;
+            background: rgba(90, 96, 110, 0.75);
+            color: #FFE9B0;
+            box-shadow: 0 0 0 1px rgba(255, 213, 85, 0.55),
+                        0 0 18px rgba(255, 180, 60, 0.40);
+            transform: translateY(-1px);
         }
         button:active {
-            border-top-color: #1A1A1A;
-            border-left-color: #1A1A1A;
-            border-bottom-color: #CCCCCC;
-            border-right-color: #CCCCCC;
-            transform: translate(1px, 1px);
+            transform: translateY(1px);
+            box-shadow: 0 0 0 1px rgba(255, 213, 85, 0.7),
+                        0 0 8px rgba(255, 180, 60, 0.35) inset;
         }
 
         /* Colored action buttons */
@@ -584,7 +584,7 @@
             .info-box h2 { font-size: 20px; }
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-CL42u5eX.js"></script>
+  <script type="module" crossorigin src="./assets/index-BuqD-hTb.js"></script>
 </head>
 
 <body>
