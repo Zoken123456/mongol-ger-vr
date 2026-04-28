@@ -108,35 +108,80 @@
             letter-spacing: 0;
         }
 
-        /* Modern glass button */
+        /* Modern glass button — gradient + rounded + soft shadow */
         button {
             margin-top: 6px;
-            padding: 9px 8px;
+            padding: 10px 10px;
             width: 100%;
-            border: 1px solid rgba(255,255,255,0.10);
-            border-radius: 8px;
-            background: rgba(60, 64, 76, 0.55);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: linear-gradient(180deg,
+                rgba(86, 92, 108, 0.78) 0%,
+                rgba(48, 52, 64, 0.78) 100%);
             color: #FFFFFF;
             font-family: 'Noto Sans', 'Segoe UI', sans-serif;
             font-size: 13px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.35),
+                        0 1px 0 rgba(255,255,255,0.08) inset,
+                        0 -1px 0 rgba(0,0,0,0.2) inset;
             transition: all 0.18s ease;
         }
         button:hover {
-            background: rgba(90, 96, 110, 0.75);
+            background: linear-gradient(180deg,
+                rgba(120, 128, 144, 0.85) 0%,
+                rgba(70, 76, 92, 0.85) 100%);
             color: #FFE9B0;
             box-shadow: 0 0 0 1px rgba(255, 213, 85, 0.55),
-                        0 0 18px rgba(255, 180, 60, 0.40);
+                        0 0 20px rgba(255, 180, 60, 0.42),
+                        0 4px 10px rgba(0,0,0,0.40);
             transform: translateY(-1px);
         }
         button:active {
             transform: translateY(1px);
-            box-shadow: 0 0 0 1px rgba(255, 213, 85, 0.7),
-                        0 0 8px rgba(255, 180, 60, 0.35) inset;
+            box-shadow: 0 0 0 1px rgba(255, 213, 85, 0.75),
+                        0 0 8px rgba(255, 180, 60, 0.4) inset;
+        }
+
+        /* Day/night slider with sun/moon icons */
+        .dn-slider-wrap {
+            margin-top: 6px;
+            padding: 10px 12px;
+            background: rgba(20, 26, 44, 0.55);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dn-slider-wrap .dn-icon {
+            font-size: 18px;
+            line-height: 1;
+            text-shadow: 0 0 8px rgba(255,200,80,0.4);
+        }
+        .dn-slider-wrap input[type="range"] {
+            flex: 1;
+            margin: 0;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(90deg, #1A1830 0%, #5478B8 35%, #FFC848 50%, #FF8030 65%, #1A1830 100%);
+            border-radius: 4px;
+            outline: none;
+        }
+        .dn-slider-wrap input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #FFF4D0, #FFD060);
+            border: 1px solid rgba(0,0,0,0.4);
+            box-shadow: 0 0 10px rgba(255, 200, 60, 0.6);
+            cursor: pointer;
         }
 
         /* Colored action buttons */
@@ -584,7 +629,7 @@
             .info-box h2 { font-size: 20px; }
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-BuqD-hTb.js"></script>
+  <script type="module" crossorigin src="./assets/index-BSK8pziB.js"></script>
 </head>
 
 <body>
@@ -752,6 +797,12 @@
     <div class="mc-section" id="sec-weather">
         🌤 ЦАГ АГААР
         <span class="mc-sub">Орчны гэрэлтүүлэг ба тунадас</span>
+    </div>
+    <div class="dn-slider-wrap" data-tip="Цагийг гулсуулж тохируулах">
+        <span class="dn-icon" id="dn-icon-left">🌙</span>
+        <input type="range" id="dn-slider" min="0" max="100" value="70"
+               oninput="if(window.setTimeOfDay)window.setTimeOfDay(this.value/100)">
+        <span class="dn-icon" id="dn-icon-right">☀</span>
     </div>
     <button id="btn-daynight" class="mc-night" data-tip="Өдөр / шөнө солих" onclick="toggleDayNight()">🌙 Шөнө</button>
     <button id="btn-autocycle" class="mc-night" data-tip="Цагийг автоматаар эргүүлэх (2 мин = 1 өдөр)" onclick="toggleAutoCycle()">🕐 Auto цаг</button>
