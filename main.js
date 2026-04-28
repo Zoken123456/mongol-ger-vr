@@ -1464,7 +1464,7 @@ const hemi = new THREE.HemisphereLight(0xC8E8FF, 0x8B7355, 0.9);
 scene.add(hemi);
 
 // Нар (сүүдэртэй)
-const sun = new THREE.DirectionalLight(0xFFF4D6, 2.8);
+const sun = new THREE.DirectionalLight(0xFFD498, 2.6);  // golden-hour дулаан өнгө
 sun.position.set(10, 18, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -4407,6 +4407,7 @@ renderer.setAnimationLoop((timestamp) => {
     _tickVRMenuHeadLock();
     _tickVRControllers();
     if (window._tickRiding) window._tickRiding(delta);
+    if (window._tickFlags)  window._tickFlags(delta);
 
     if (isWalking && walkControls.isLocked && !_ridingHorse) {
         const speed = 4;
@@ -5560,6 +5561,63 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
         });
     }, 100);
 })();
+
+// Газрын шороотой/халцарсан толбо — Ground painting (гэр, хашаа орчмын элэгдэл)
+(function addGroundPatches() {
+    const dirtMat = new THREE.MeshStandardMaterial({
+        color: 0xA0805A, roughness: 0.97, transparent: true, opacity: 0.78
+    });
+    const dirtMatD = new THREE.MeshStandardMaterial({
+        color: 0x7A5A38, roughness: 0.96, transparent: true, opacity: 0.7
+    });
+    // Гэрийн орчмын халцарсан газрууд
+    const patches = [
+        // Гэрийн хаалганы өмнөх элэгдэл
+        { x: 6, z: 0, r: 1.6, mat: dirtMat },
+        { x: 8, z: 0, r: 1.2, mat: dirtMatD },
+        // Голомтын тойрог (галын дэргэд)
+        { x: -4, z: 4, r: 1.3, mat: dirtMat },
+        // Морины уяан доор
+        { x: 9.5, z: 22, r: 0.9, mat: dirtMatD },
+        { x: 12.5, z: 22, r: 0.9, mat: dirtMatD },
+        { x: 15.5, z: 22, r: 0.9, mat: dirtMatD },
+        // Малын хашаан дотор халцарсан газар
+        { x: -21, z: 3, r: 3.2, mat: dirtMat },
+        { x: -19, z: -2, r: 2.5, mat: dirtMatD },
+        { x: -23, z: 6, r: 2.0, mat: dirtMat },
+    ];
+    patches.forEach(({ x, z, r, mat }) => {
+        const patch = new THREE.Mesh(
+            new THREE.CircleGeometry(r, 14),
+            mat
+        );
+        patch.rotation.x = -Math.PI / 2;
+        patch.position.set(x, 0.005, z);
+        scene.add(patch);
+    });
+})();
+
+// Далбаа сүлжих — салхинд намсах анимаци
+let _flagSwayT = 0;
+const _flagsToSway = [];
+scene.traverse(o => {
+    if (o.isMesh && o.geometry && o.geometry.type === 'PlaneGeometry'
+        && o.material && o.material.color
+        && [0xE83828, 0xE89028, 0xF0D028, 0x40A0E8, 0x40C870].some(c => o.material.color.getHex() === c)
+        && Math.abs(o.geometry.parameters.width - 0.32) < 0.01) {
+        _flagsToSway.push({
+            mesh: o,
+            base: o.rotation.z,
+            phase: Math.random() * Math.PI * 2
+        });
+    }
+});
+window._tickFlags = function (dt) {
+    _flagSwayT += dt;
+    _flagsToSway.forEach(({ mesh, base, phase }) => {
+        mesh.rotation.z = base + Math.sin(_flagSwayT * 2.4 + phase) * 0.18;
+    });
+};
 
 // Бүргэд — тэнгэрт нисэж тойрно
 function _createEagleSimple() {
