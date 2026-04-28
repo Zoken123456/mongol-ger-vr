@@ -772,10 +772,7 @@ class MongolianGer {
         this.parts['tuurga'] = this._tuurga.getObject();
 
         // ── БҮСЛҮҮР — 3 ширхэг (gap нь хаалганы өргөнтэй яг таардаг) ─
-        const doorWidth = 1.1;
-        const bvsluurR  = R + 0.09;
-        const doorGap   = 2 * Math.asin((doorWidth / 2) / bvsluurR) + 0.04; // +2°-ийн зай
-        this._bvsluur = new Bvsluur(R, wallH, doorGap);
+        this._bvsluur = new Bvsluur(R, wallH, doorAngle);
         this._bvsluur.place(0, 0, 0);
         this._group.add(this._bvsluur.getObject());
         this.parts['bvsluur'] = this._bvsluur.getObject();
