@@ -1018,6 +1018,8 @@ renderer.xr.addEventListener('sessionstart', () => {
         rig.updateMatrixWorld(true);
     }
     scene.add(_vrFill);
+    // VR орох үед гэрийг бүхэлд нь нуух — хэрэглэгч ГЭР БАРИХ дараад анимаци хардаг
+    if (window._resetGerForVR) window._resetGerForVR();
 });
 renderer.xr.addEventListener('sessionend', () => {
     const rig = renderer.xr.getCamera().parent;
@@ -4625,6 +4627,24 @@ renderer.domElement.addEventListener('click', e => {
 });
 
 // ── ГЭР БАРИХ — нэг нэгээр анимацтайгаар ────────────────────────
+// Гэрийг бүхэлд нь нуух/эвхэх — VR орох эсвэл reset хэрэгтэй үед
+window._resetGerForVR = function () {
+    ger.setKhanaVisible(-1, false);
+    ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, false));
+    ger.getTuurga().setVisible(-1, false);
+    ger.getBvsluur().setVisible(-1, false);
+    // Анимацийн pos-ыг reset
+    [...ger.getTuurga().getPanels(),
+     ...ger.getBvsluur().getBands(),
+     ger.parts['bagana'], ger.parts['toono'], ger.parts['roof']
+    ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
+    // Унь bars-ыг scale-r reset
+    const uniGrp = ger.parts['un'];
+    if (uniGrp) uniGrp.children.forEach(b => b.scale.set(1, 1, 1));
+    // Хана reset fold
+    ger.setKhanaFold(-1, 0.12);
+};
+
 window.buildGer = function () {
     // Бүгдийг нуух
     ger.setKhanaVisible(-1, false);
@@ -4674,9 +4694,37 @@ window.buildGer = function () {
     }, d);
     d += 650;
 
-    // 5. Унь
-    setTimeout(() => ger.setPartVisibility('un', true), d);
-    d += 400;
+    // 5. Унь — нэг нэгээр тойрон гарч ирнэ
+    setTimeout(() => {
+        ger.setPartVisibility('un', true);
+        const uniGrp = ger.parts['un'];
+        if (uniGrp && uniGrp.children) {
+            const bars = uniGrp.children;
+            // Эхлээд бүгдийг нь нуух
+            bars.forEach(b => { b.visible = false; b.scale.set(0.01, 0.01, 0.01); });
+            // 25мс тутам нэг нэгээр тойрон харагдах
+            bars.forEach((b, i) => {
+                setTimeout(() => {
+                    b.visible = true;
+                    // Жижигээс рүү нь хэвийн хэмжээтэй болж томор
+                    const startT = performance.now();
+                    const dur = 280;
+                    const step = () => {
+                        const t = Math.min(1, (performance.now() - startT) / dur);
+                        // EaseOutBack-шиг
+                        const e = 1 - Math.pow(1 - t, 3);
+                        const back = 1 + (Math.sin(t * Math.PI) * 0.15);
+                        const sc = e * back;
+                        b.scale.set(sc, sc, sc);
+                        if (t < 1) requestAnimationFrame(step);
+                        else b.scale.set(1, 1, 1);
+                    };
+                    step();
+                }, i * 18);
+            });
+        }
+    }, d);
+    d += 18 * 52 + 400; // 52 уни × 18мс + дуусгахад 0.4сек
 
     // 6. Туурга 1 & 2
     setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, d);
