@@ -1038,6 +1038,28 @@ renderer.xr.addEventListener('sessionend', () => {
     scene.remove(_vrFill);
 });
 
+// ── VR режимд 2D HTML цэс/HUD-ийг нуух (комп дээр харагдана) ──
+const _domUiIds = ['ui-container', 'ui-toggle', 'hud-corner', 'walk-hint',
+                   'welcome-overlay', 'info-modal'];
+const _domUiPrev = {};
+renderer.xr.addEventListener('sessionstart', () => {
+    document.body.classList.add('is-vr');
+    _domUiIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        _domUiPrev[id] = el.style.display;
+        el.style.display = 'none';
+    });
+});
+renderer.xr.addEventListener('sessionend', () => {
+    document.body.classList.remove('is-vr');
+    _domUiIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = _domUiPrev[id] ?? '';
+    });
+});
+
 // ── VR CONTROLLERS — Teleportation + Ray interaction ─────────────
 // Teleport indicator (Minecraft portal-like ring)
 const _tpMat = new THREE.MeshBasicMaterial({
