@@ -119,9 +119,9 @@ export class Tuurga {
             roughness: 0.9, metalness: 0, side: THREE.DoubleSide
         });
 
-        // theta=0 → +X (хаалга байрлах тал) — Three.js CylinderGeometry стандартаар
-        // gap дуусах → panel эхэлнэ
-        const gapEnd   = da / 2;
+        // CylinderGeometry дотор theta=0 → +Z, theta=π/2 → +X (x=sin θ, z=cos θ).
+        // Хаалга нь +X тэнхлэгт байгаа тул цоорхойг theta=π/2 дээр төвлөрүүлнэ.
+        const gapEnd   = Math.PI / 2 + da / 2;
         const totalArc = Math.PI * 2 - da;
         const half     = totalArc / 2;
 
@@ -146,17 +146,7 @@ export class Tuurga {
             this.group.add(panel);
         });
 
-        // Улаан зах — доод ба дээд
-        const bandMat = new THREE.MeshStandardMaterial({
-            color: 0xCC0000, roughness: 0.55, metalness: 0.05
-        });
-        [0.08, H - 0.06].forEach(y => {
-            const b = new THREE.Mesh(
-                new THREE.TorusGeometry(R + 0.01, 0.055, 10, 80), bandMat);
-            b.rotation.x = Math.PI / 2;
-            b.position.y = y;
-            this.group.add(b);
-        });
+        // Улаан зах хасагдсан (хэрэглэгчийн хүсэлтээр)
     }
 
     toggle(i) {

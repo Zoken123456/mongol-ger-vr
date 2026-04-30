@@ -42,10 +42,11 @@ export class Bvsluur {
                 color: 0xE8901A, roughness: 0.82, metalness: 0.0, side: THREE.DoubleSide
             });
 
-            // Хана-той адил: гарц нь +X тэнхлэгт (хаалга), thetaStart = da/2
+            // CylinderGeometry-д theta=π/2 нь +X (хаалганы тал), тул цоорхойг
+            // тэнд төвлөрүүлэхэд thetaStart = π/2 + da/2.
             const band = new THREE.Mesh(
                 new THREE.CylinderGeometry(R, R, 0.16, 60, 1, true,
-                                           da / 2, arc),
+                                           Math.PI / 2 + da / 2, arc),
                 mat);
             band.castShadow = true;
             band.userData.isClickMesh = true;

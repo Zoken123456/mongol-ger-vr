@@ -712,10 +712,9 @@ class MongolianGer {
         const toonoR = 1.2;
 
         // ── 5 ХАНА ───────────────────────────────────────────────
-        // doorAngle-ийг хаалганы яг өргөнтэй таарахаар тооцоолно
-        // (frame нэмж 1.3м, R-0.05 радиус) — gap дотор хана/бүрээс бүгд яг хаалганд тулна
+        // doorAngle-ийг хаалганы panel-ийн яг өргөнтэй таарахаар тооцоолно
         const doorWidth   = 1.1;
-        const doorAngle   = 2 * Math.asin((doorWidth + 0.18) / 2 / (R - 0.05)); // ≈ 0.262 rad
+        const doorAngle   = 2 * Math.asin(doorWidth / 2 / (R - 0.05)); // ≈ 0.222 rad
         const totalArc    = Math.PI * 2 - doorAngle;
         const arcPerPanel = totalArc / 5;
         let   currentAngle = doorAngle / 2;
@@ -1621,7 +1620,8 @@ const _innerFeltMat = new THREE.MeshStandardMaterial({
 function _makeFeltPanel(radius, wallH, doorAngle, panelIdx) {
     const totalArc = Math.PI * 2 - doorAngle;
     const half = totalArc / 2;
-    const gapEnd = doorAngle / 2;       // gap +X тэнхлэгт (хаалга)
+    // CylinderGeometry: theta=π/2 нь +X (хаалганы тал), тэнд цоорхой үлдээнэ
+    const gapEnd = Math.PI / 2 + doorAngle / 2;
     const tStart = gapEnd + panelIdx * half;
     const geo = new THREE.CylinderGeometry(radius, radius, wallH * 0.96, 36, 1, true, tStart, half);
     const m = new THREE.Mesh(geo, _innerFeltMat);
@@ -1643,19 +1643,22 @@ scene.add(_innerFeltGroup);
 const _outerCoverMat = new THREE.MeshStandardMaterial({
     color: 0xFAFAF0, roughness: 0.92, side: THREE.DoubleSide
 });
+// CylinderGeometry-д theta=π/2 нь +X (хаалга) учир цоорхойг тэнд төвлөрүүлнэ
+const _OUTER_GAP_END = Math.PI / 2 + _DOOR_ANGLE / 2;
+const _OUTER_HALF    = (Math.PI * 2 - _DOOR_ANGLE) / 2;
 const _outerCoverPanels = [
     new THREE.Mesh(
         new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
             36, 1, true,
-            _DOOR_ANGLE / 2,                 // gap +X тэнхлэгт
-            (Math.PI * 2 - _DOOR_ANGLE) / 2),
+            _OUTER_GAP_END,
+            _OUTER_HALF),
         _outerCoverMat
     ),
     new THREE.Mesh(
         new THREE.CylinderGeometry(_GER_R + 0.18, _GER_R + 0.18, _GER_WALL_H * 0.98,
             36, 1, true,
-            _DOOR_ANGLE / 2 + (Math.PI * 2 - _DOOR_ANGLE) / 2,
-            (Math.PI * 2 - _DOOR_ANGLE) / 2),
+            _OUTER_GAP_END + _OUTER_HALF,
+            _OUTER_HALF),
         _outerCoverMat
     ),
 ];
@@ -3056,8 +3059,8 @@ function createOxCart(x, z, rotY = 0) {
     return g;
 }
 
-// Тэрэг — гэрийн баруун талд, хаалгатай ойролцоо
-scene.add(createOxCart(10, 4, Math.PI * 0.15));
+// Тэрэг — гэрийн баруун талд, хаалгатай ойролцоо (гэрээс жаахан зайтай)
+scene.add(createOxCart(12.5, 5, Math.PI * 0.15));
 
 // Хүмүүс — уяаны дэргэд
 // Эрэгтэй — хүрэн deel
@@ -5575,55 +5578,6 @@ renderer.domElement.addEventListener('mousemove', (ev) => {
     }
     renderer.domElement.style.cursor = kind ? 'pointer' : '';
 });
-
-// ══════════════════════════════════════════════════════════════════
-// ДАЛБАА СҮЛЖИХ — гол гэрийг тойрсон тулгуур + олон өнгийн далбаа
-// ══════════════════════════════════════════════════════════════════
-(function addPrayerFlags() {
-    const grp = new THREE.Group();
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x4A2A14, roughness: 0.88 });
-    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x9A8A6A, roughness: 0.85 });
-    const colors = [0xE83828, 0xE89028, 0xF0D028, 0x40A0E8, 0x40C870];
-    // 4 тулгуур
-    const poles = [[-9, -8], [-7, 4], [9, -8], [7, 4]];
-    const poleY = 5;
-    poles.forEach(([x, z]) => {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, poleY, 7), woodMat);
-        pole.position.set(x, poleY / 2, z); grp.add(pole);
-    });
-    // Хоёр тулгуурын хооронд олс татаж далбаа өлгөх
-    function strung(p1, p2) {
-        const [x1, z1] = p1, [x2, z2] = p2;
-        const len = Math.hypot(x2 - x1, z2 - z1);
-        const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
-        const ang = Math.atan2(z2 - z1, x2 - x1);
-        // Олс
-        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, len, 6), ropeMat);
-        rope.position.set(cx, poleY - 0.15, cz);
-        rope.rotation.y = -ang; rope.rotation.z = Math.PI / 2; grp.add(rope);
-        // Далбаа (15 ширхэг олс дагуу)
-        const flagN = Math.max(8, Math.floor(len * 1.3));
-        for (let i = 0; i < flagN; i++) {
-            const tt = (i + 0.5) / flagN;
-            const px = x1 + (x2 - x1) * tt;
-            const pz = z1 + (z2 - z1) * tt;
-            // Олс бага зэрэг намсна — sag
-            const sag = Math.sin(tt * Math.PI) * 0.25;
-            const py = poleY - 0.15 - sag;
-            const flagMat = new THREE.MeshStandardMaterial({
-                color: colors[i % colors.length], roughness: 0.85, side: THREE.DoubleSide
-            });
-            const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.45), flagMat);
-            flag.position.set(px, py - 0.22, pz);
-            flag.rotation.y = -ang + Math.PI / 2;
-            flag.rotation.z = (Math.random() - 0.5) * 0.2;
-            grp.add(flag);
-        }
-    }
-    strung(poles[0], poles[2]); // зүүн → баруун
-    strung(poles[1], poles[3]); // нөгөө шугам
-    scene.add(grp);
-})();
 
 // ══════════════════════════════════════════════════════════════════
 // ШОРОО ЗАМ — гэрүүд хооронд тойрсон цайвар тойрог зам
