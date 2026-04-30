@@ -1347,8 +1347,8 @@ renderer.xr.addEventListener('sessionstart', () => { _vrMenuMesh.visible = false
 renderer.xr.addEventListener('sessionend',   () => { _vrMenuMesh.visible = false; });
 
 // A (right) эсвэл X (left) товчийг дарахад цэсийг toggle хийнэ
-// Controller gamepad mapping: buttons[4] = A/X (үндсэн төрлийн Oculus/Quest controller)
-let _vrMenuBtnPrev = false;
+// A/X button (buttons[4]) — гэр барих анимаци эхлүүлнэ (3D цэс байхгүй)
+let _vrBuildBtnPrev = false;
 function _pollVRMenuToggle() {
     if (!renderer.xr.isPresenting) return;
     const session = renderer.xr.getSession();
@@ -1360,38 +1360,66 @@ function _pollVRMenuToggle() {
             break;
         }
     }
-    if (pressed && !_vrMenuBtnPrev) {
-        _vrMenuMesh.visible = !_vrMenuMesh.visible;
-        if (_vrMenuMesh.visible) _drawVRMenu();
+    if (pressed && !_vrBuildBtnPrev && window.buildGer) {
+        try { window.buildGer(); } catch (e) { console.error('VR buildGer:', e); }
     }
-    _vrMenuBtnPrev = pressed;
+    _vrBuildBtnPrev = pressed;
 }
 
-// Controller events — select = trigger (teleport / menu click), squeeze = grip (door)
+// VR хэсгэд хүрэх (highlight) + сонгож toggle хийх
+let _vrHoveredPart = null;
+const _vrEmissiveCache = new Map();
+function _vrSetHoveredPart(target) {
+    if (target === _vrHoveredPart) return;
+    if (_vrHoveredPart) {
+        _vrHoveredPart.traverse(m => {
+            if (m.isMesh && _vrEmissiveCache.has(m.uuid)) {
+                m.material.emissive.setHex(_vrEmissiveCache.get(m.uuid));
+                _vrEmissiveCache.delete(m.uuid);
+            }
+        });
+    }
+    if (target) {
+        target.traverse(m => {
+            if (m.isMesh && m.material && m.material.emissive !== undefined) {
+                _vrEmissiveCache.set(m.uuid, m.material.emissive.getHex());
+                m.material.emissive.setHex(0x442800);
+            }
+        });
+    }
+    _vrHoveredPart = target;
+}
+function _vrTogglePartByObject(target) {
+    if (!target || _anims.has(target.uuid)) return;
+    const home   = _getHome(target);
+    const offset = ENTRY_OFFSETS[target.name] ?? new THREE.Vector3(0, 8, 0);
+    if (target.visible) {
+        animTo(target, home.clone().add(offset), 0.45, null, () => {
+            target.visible = false;
+            target.position.copy(home);
+            const cb = document.getElementById('check-' + target.name);
+            if (cb) cb.checked = false;
+        });
+    } else {
+        target.visible = true;
+        animTo(target, home, 0.7, home.clone().add(offset));
+        const cb = document.getElementById('check-' + target.name);
+        if (cb) cb.checked = true;
+    }
+}
+
+// Controller events — trigger = part toggle / teleport, squeeze = door
 _vrCtrl.forEach((entry, idx) => {
     entry.ctrl.addEventListener('selectstart', () => { entry.tpReady = true; });
     entry.ctrl.addEventListener('selectend', () => {
         entry.tpReady = false;
-        // Хэрэв ямар нэгэн гар цэс дээр луч тогтоосон бол — тэр товчийг дар
-        if (_vrHoverIdx >= 0) {
-            const btn = _vrMenuButtons[_vrHoverIdx];
-            _vrFlashIdx = _vrHoverIdx;
-            _vrFlashUntil = performance.now() + 200;
-            // Slider — uv.x-ийг ашиглан эвхэлтийн түвшинг тогтооно
-            if (btn.isSlider && _vrSliderFrac >= 0) {
-                const fold = Math.max(0.12, Math.min(1.0, 0.12 + _vrSliderFrac * 0.88));
-                _vrCurrentFold = fold;
-                if (window.setAllFold) window.setAllFold(fold);
-                _drawVRMenu();
-                _tpRing.visible = false;
-                return;
-            }
-            _drawVRMenu();
-            try { btn.action(); } catch (e) { console.error('VR menu action error:', e); }
+        // 1) Гэрийн хэсэг рүү заагдсан бол → toggle
+        if (_vrHoveredPart) {
+            _vrTogglePartByObject(_vrHoveredPart);
             _tpRing.visible = false;
             return;
         }
-        // Teleport — rig rotation-ийг тооцож, world-space delta-гаар шилжүүлнэ
+        // 2) Газарт заагдсан бол → teleport (rig-ийг шилжүүлнэ)
         if (_tpRing.visible) {
             const pos = _tpRing.position;
             const xrCam = renderer.xr.getCamera();
@@ -1468,13 +1496,18 @@ const _vrDir      = new THREE.Vector3();
 const _vrQuat     = new THREE.Quaternion();
 
 function _tickVRControllers() {
-    if (!renderer.xr.isPresenting) { _tpRing.visible = false; _vrHoverIdx = -1; return; }
+    if (!renderer.xr.isPresenting) {
+        _tpRing.visible = false;
+        _vrHoverIdx = -1;
+        _vrSetHoveredPart(null);
+        return;
+    }
 
-    const prevHover = _vrHoverIdx;
-    const prevSlider = _vrSliderFrac;
     _vrHoverIdx = -1;
     _vrSliderFrac = -1;
     let anyTp = false;
+    let nearestPart = null;
+    let nearestPartDist = Infinity;
 
     _vrCtrl.forEach(({ ctrl, ray, tpReady }, idx) => {
         if (!ctrl.visible) return;
@@ -1484,34 +1517,22 @@ function _tickVRControllers() {
         _vrDir.set(0, 0, -1).applyQuaternion(_vrQuat);
         _vrRay.set(_vrOrigin, _vrDir);
 
-        // 1) Эхлээд цэстэй огтлолцож байгаа эсэхийг шалгана — аль ч гараар дарж болно
-        let hitMenu = false;
-        if (_vrMenuMesh.visible) {
-            const mh = _vrRay.intersectObject(_vrMenuMesh);
-            if (mh.length > 0 && mh[0].uv) {
-                const uv = mh[0].uv;
-                const col = Math.min(_VR_COLS - 1, Math.floor(uv.x * _VR_COLS));
-                const row = Math.min(_VR_ROWS - 1, Math.floor((1 - uv.y) * _VR_ROWS));
-                const bi = row * _VR_COLS + col;
-                if (bi >= 0 && bi < _vrMenuButtons.length) {
-                    _vrHoverIdx = bi;
-                    hitMenu = true;
-                    // Slider дээр uv.x хадгална — селект үед энэ хувь нь fold болно
-                    if (_vrMenuButtons[bi].isSlider) {
-                        _vrSliderFrac = Math.max(0, Math.min(1, uv.x));
-                    } else {
-                        _vrSliderFrac = -1;
-                    }
-                    ray.scale.z = _vrOrigin.distanceTo(mh[0].point) / 10;
-                    ray.material.opacity = 0.9;
-                }
+        // 1) Гэрийн хэсэг (isClickMesh) рүү заасан эсэх
+        const partHits = _vrRay.intersectObjects(ger.getObject3D().children, true)
+            .filter(h => h.object.userData && h.object.userData.isClickMesh);
+        if (partHits.length > 0) {
+            const target = _getToggleAncestor(partHits[0].object);
+            if (target) {
+                const d = _vrOrigin.distanceTo(partHits[0].point);
+                if (d < nearestPartDist) { nearestPartDist = d; nearestPart = target; }
+                ray.scale.z = d / 10;
+                ray.material.opacity = 0.95;
+                return;
             }
         }
-        if (hitMenu) return;
 
-        // 2) Teleport луч — зөвхөн trigger даралттай байхад
+        // 2) Газарт зааж teleport (зөвхөн trigger даралттай үед)
         if (!tpReady) { ray.scale.z = 1; ray.material.opacity = 0.35; return; }
-
         const hits = _vrRay.intersectObject(ground);
         if (hits.length > 0) {
             _tpRing.position.copy(hits[0].point).setY(0.01);
@@ -1525,13 +1546,8 @@ function _tickVRControllers() {
         }
     });
 
+    _vrSetHoveredPart(nearestPart);
     if (!anyTp) _tpRing.visible = false;
-
-    // Hover солигдсон, slider дээр гулсуулж байгаа, эсвэл flash үргэлжилж байвал menu-г дахин зур
-    if (_vrHoverIdx !== prevHover || Math.abs(_vrSliderFrac - prevSlider) > 0.003 ||
-        performance.now() < _vrFlashUntil) {
-        _drawVRMenu();
-    }
 }
 
 
