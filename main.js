@@ -1412,6 +1412,55 @@ _vrCtrl.forEach((entry, idx) => {
     });
 });
 
+// ── VR LOCOMOTION — зүүн thumbstick = чөлөөт алхам, баруун = snap-turn ──
+const _VR_MOVE_SPEED = 3.0;        // м/с
+const _VR_DEADZONE   = 0.15;
+const _VR_SNAP_ANGLE = Math.PI / 6; // 30°
+let   _vrSnapReady   = true;
+const _vrLocFwd   = new THREE.Vector3();
+const _vrLocRight = new THREE.Vector3();
+const _vrLocCam   = new THREE.Vector3();
+const _vrUp       = new THREE.Vector3(0, 1, 0);
+function _tickVRLocomotion(dt) {
+    if (!renderer.xr.isPresenting) return;
+    const session = renderer.xr.getSession();
+    if (!session) return;
+    const xrCam = renderer.xr.getCamera();
+    const rig   = xrCam.parent;
+    if (!rig) return;
+
+    let mx = 0, my = 0, tx = 0;
+    for (const src of session.inputSources) {
+        if (!src.gamepad || src.gamepad.axes.length < 4) continue;
+        const ax = src.gamepad.axes;
+        if (src.handedness === 'left')  { mx = ax[2]; my = ax[3]; }
+        else if (src.handedness === 'right') { tx = ax[2]; }
+    }
+
+    // Чөлөөт хөдөлгөөн — зүүн stick
+    if (Math.hypot(mx, my) > _VR_DEADZONE) {
+        xrCam.getWorldDirection(_vrLocFwd); _vrLocFwd.y = 0; _vrLocFwd.normalize();
+        _vrLocRight.crossVectors(_vrLocFwd, _vrUp).normalize();
+        rig.position.addScaledVector(_vrLocFwd,   -my * _VR_MOVE_SPEED * dt);
+        rig.position.addScaledVector(_vrLocRight,  mx * _VR_MOVE_SPEED * dt);
+    }
+
+    // Snap-turn — баруун stick (head-pivot эргэнэ)
+    if (Math.abs(tx) > 0.7 && _vrSnapReady) {
+        xrCam.getWorldPosition(_vrLocCam);
+        const dx = rig.position.x - _vrLocCam.x;
+        const dz = rig.position.z - _vrLocCam.z;
+        const a  = -Math.sign(tx) * _VR_SNAP_ANGLE;
+        const c  = Math.cos(a), s = Math.sin(a);
+        rig.position.x = _vrLocCam.x + dx * c - dz * s;
+        rig.position.z = _vrLocCam.z + dx * s + dz * c;
+        rig.rotation.y += a;
+        _vrSnapReady = false;
+    } else if (Math.abs(tx) < 0.3) {
+        _vrSnapReady = true;
+    }
+}
+
 // VR raycaster + pre-allocated scratch objects (avoid GC pressure in hot path)
 const _vrRay      = new THREE.Raycaster();
 const _vrOrigin   = new THREE.Vector3();
@@ -4504,6 +4553,7 @@ renderer.setAnimationLoop((timestamp) => {
     _pollVRMenuToggle();
     _tickVRMenuHeadLock();
     _tickVRControllers();
+    _tickVRLocomotion(delta);
     if (window._tickRiding) window._tickRiding(delta);
     if (window._tickFlags)  window._tickFlags(delta);
 
