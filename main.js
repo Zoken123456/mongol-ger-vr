@@ -1152,20 +1152,31 @@ const _vrToggleAll = () => {
 
 // VR-ын хувьд rig-ийг шилжүүлэн "гадаа/дотор/гарах" хийнэ.
 // HMD-ийн playspace доторх offset-ийг тооцож, хэрэглэгчийг бодит target дээр хүргэнэ.
-const _vrTpScratchCam = new THREE.Vector3();
+// Тэмдэглэл: xrCam.getWorldPosition нь өмнөх кадрын matrixWorld-ийг ашигладаг
+// учир бид түүн дээр ҮНДЭСЛЭХГҮЙ — local pose + шинэ rotation-аар шууд тооцно.
 const _vrTeleportRig = (x, z, ry = null) => {
     if (!renderer.xr.isPresenting) return;
     const xrCam = renderer.xr.getCamera();
     const rig = xrCam.parent;
     if (!rig) return;
-    if (ry !== null) rig.rotation.y = ry;
+    // Хуучин cam world position (өмнөх rotation-той)
+    const oldRy = rig.rotation.y;
+    const lx = xrCam.position.x;
+    const lz = xrCam.position.z;
+    // Ашиглах rotation
+    const newRy = (ry !== null) ? ry : oldRy;
+    rig.rotation.y = newRy;
+    // Шинэ rotation-ийн дор HMD дэлхийд хаана буух — тэр delta-аар rig-ийг тохируулна
+    const c = Math.cos(newRy), s = Math.sin(newRy);
+    // R_y(newRy) * (lx, 0, lz) = (lx*c + lz*s, 0, -lx*s + lz*c)
+    const wx = lx * c + lz * s;
+    const wz = -lx * s + lz * c;
+    rig.position.x = x - wx;
+    rig.position.z = z - wz;
     rig.updateMatrixWorld(true);
-    xrCam.getWorldPosition(_vrTpScratchCam);
-    rig.position.x += x - _vrTpScratchCam.x;
-    rig.position.z += z - _vrTpScratchCam.z;
 };
-const _vrWalkOutside = () => _vrTeleportRig(11, 0,  Math.PI / 2); // +X талд гэр рүү харна
-const _vrWalkInside  = () => _vrTeleportRig(0,  0, -Math.PI / 2); // дотор төв, +X харна
+const _vrWalkOutside = () => _vrTeleportRig(11, 0,  Math.PI / 2); // +X талд гэрийг хардаг
+const _vrWalkInside  = () => _vrTeleportRig(0,  0, -Math.PI / 2); // гэрийн төв
 const _vrWalkExit    = () => _vrTeleportRig(6,  0,  Math.PI / 2); // анхны спавн
 
 const _vrMenuButtons = [
