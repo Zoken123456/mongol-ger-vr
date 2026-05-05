@@ -1115,7 +1115,12 @@ const _vrCtrl = [0, 1].map(i => {
     ctrl.add(hand);
     ctrl.add(ray);
     scene.add(ctrl);
-    return { ctrl, hand, ray, tpReady: false };
+    const entry = { ctrl, hand, ray, tpReady: false, handedness: null };
+    ctrl.addEventListener('connected', (e) => {
+        if (e.data && e.data.handedness) entry.handedness = e.data.handedness;
+    });
+    ctrl.addEventListener('disconnected', () => { entry.handedness = null; });
+    return entry;
 });
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
@@ -1435,17 +1440,15 @@ function _vrTogglePartByObject(target) {
     }
 }
 
-// Controller events — trigger = part toggle / teleport, squeeze = door
+// Controller events — trigger дарвал шууд: цэс/хэсэг/газар (хүлээх шаардлагагүй)
 _vrCtrl.forEach((entry, idx) => {
-    entry.ctrl.addEventListener('selectstart', () => { entry.tpReady = true; });
-    entry.ctrl.addEventListener('selectend', () => {
-        entry.tpReady = false;
+    entry.ctrl.addEventListener('selectstart', () => {
+        entry.tpReady = true;
         // 1) VR цэс дээр заагдсан бол → action гүйцэтгэнэ
         if (_vrHoverIdx >= 0 && _vrMenuMesh.visible) {
             const btn = _vrMenuButtons[_vrHoverIdx];
             _vrFlashIdx = _vrHoverIdx;
             _vrFlashUntil = performance.now() + 200;
-            // Slider — uv.x-ийн утгаар бүх ханын fold-ыг тохируулна (slider үед цэс хаадаггүй)
             if (btn && btn.isSlider && _vrSliderFrac >= 0) {
                 const fold = Math.max(0.12, Math.min(1.0, 0.12 + _vrSliderFrac * 0.88));
                 _vrCurrentFold = fold;
@@ -1458,7 +1461,6 @@ _vrCtrl.forEach((entry, idx) => {
             try { btn && btn.action && btn.action(); }
             catch (e) { console.error('VR menu action:', e); }
             _tpRing.visible = false;
-            // Action дараа цэсийг автоматаар хаах — хэрэглэгч үр дүнг шууд харна
             _vrMenuMesh.visible = false;
             _vrHoverIdx = -1;
             return;
@@ -1469,20 +1471,14 @@ _vrCtrl.forEach((entry, idx) => {
             _tpRing.visible = false;
             return;
         }
-        // 3) Газарт заагдсан бол → teleport (rig-ийг шилжүүлнэ)
-        if (_tpRing.visible) {
+        // 3) Газарт заагдсан бол → яг тэр цэг рүү шууд teleport (зөвхөн баруун гар)
+        if (entry.handedness === 'right' && _tpRing.visible) {
             const pos = _tpRing.position;
-            const xrCam = renderer.xr.getCamera();
-            const rig = xrCam.parent;
-            if (rig) {
-                const camWorld = new THREE.Vector3();
-                xrCam.getWorldPosition(camWorld);
-                rig.position.x += pos.x - camWorld.x;
-                rig.position.z += pos.z - camWorld.z;
-            }
+            _vrTeleportRig(pos.x, pos.z, null);
             _tpRing.visible = false;
         }
     });
+    entry.ctrl.addEventListener('selectend', () => { entry.tpReady = false; });
     // Squeeze (grip) = хаалга нээх/хаах
     entry.ctrl.addEventListener('squeezestart', () => {
         ger.openDoor();
@@ -1566,7 +1562,8 @@ function _tickVRControllers() {
     let nearestPart = null;
     let nearestPartDist = Infinity;
 
-    _vrCtrl.forEach(({ ctrl, ray, tpReady }, idx) => {
+    _vrCtrl.forEach((entry, idx) => {
+        const { ctrl, ray, handedness } = entry;
         if (!ctrl.visible) return;
 
         ctrl.getWorldPosition(_vrOrigin);
@@ -1608,15 +1605,19 @@ function _tickVRControllers() {
             }
         }
 
-        // 3) Газарт зааж teleport (зөвхөн trigger даралттай үед)
-        if (!tpReady) { ray.scale.z = 1; ray.material.opacity = 0.35; return; }
-        const hits = _vrRay.intersectObject(ground);
-        if (hits.length > 0) {
-            _tpRing.position.copy(hits[0].point).setY(0.01);
-            _tpRing.visible = true;
-            anyTp = true;
-            ray.scale.z = _vrOrigin.distanceTo(hits[0].point) / 10;
-            ray.material.opacity = 0.85;
+        // 3) Газарт зааж teleport (зөвхөн БАРУУН гар, үргэлж ring харагдана)
+        if (handedness === 'right') {
+            const hits = _vrRay.intersectObject(ground);
+            if (hits.length > 0) {
+                _tpRing.position.copy(hits[0].point).setY(0.01);
+                _tpRing.visible = true;
+                anyTp = true;
+                ray.scale.z = _vrOrigin.distanceTo(hits[0].point) / 10;
+                ray.material.opacity = 0.85;
+            } else {
+                ray.scale.z = 1;
+                ray.material.opacity = 0.35;
+            }
         } else {
             ray.scale.z = 1;
             ray.material.opacity = 0.35;
