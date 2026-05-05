@@ -1119,8 +1119,8 @@ const _vrCtrl = [0, 1].map(i => {
 });
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
-const _VR_COLS = 2, _VR_ROWS = 2;
-const _VR_CV_W = 512, _VR_CV_H = 512;
+const _VR_COLS = 4, _VR_ROWS = 10;
+const _VR_CV_W = 640, _VR_CV_H = 1024;
 const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
 
@@ -1153,10 +1153,56 @@ const _vrWalkInside  = () => _vrTeleportRig(0, 3.5, Math.PI);     // дотор 
 const _vrWalkExit    = () => _vrTeleportRig(6, 0, Math.PI / 2);   // анхны спавн
 
 const _vrMenuButtons = [
+    // 1) Үндсэн үйлдэл
     { label: 'ГЭР БАРИХ', color: '#1E4E8C', action: () => window.buildGer && window.buildGer() },
     { label: 'БҮГДИЙГ',   color: '#3A5A3A', action: () => _vrToggleAll() },
-    { label: 'ГАДАА',     color: '#2A6E1A', action: () => _vrWalkOutside() },
-    { label: 'ДОТОР',     color: '#5E3A1A', action: () => _vrWalkInside() },
+    { label: 'ЭВХЭХ',     color: '#555555', action: () => window.setAllFold && window.setAllFold(0.12) },
+    { label: 'ДЭЛГЭХ',    color: '#555555', action: () => window.setAllFold && window.setAllFold(1.0) },
+    // 2) Бүх ханын fold slider (4 cell-ийг нэгтгэсэн уртын мөр)
+    { label: 'ХАНА FOLD', color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',          color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',          color: '#D89030', isSlider: true, action: () => {} },
+    { label: '',          color: '#D89030', isSlider: true, action: () => {} },
+    // 3) Хаалга / view
+    { label: 'ХААЛГА НЭЭХ', color: '#2A6E1A', action: () => window.openDoor && window.openDoor() },
+    { label: 'ХААЛГА ХААХ', color: '#6E1A1A', action: () => window.closeDoor && window.closeDoor() },
+    { label: 'ЭРГҮҮЛЭХ',    color: '#555555', action: () => window.toggleRotation && window.toggleRotation() },
+    { label: 'БУЦАХ',       color: '#555555', action: () => window.resetView && window.resetView() },
+    // 4) Явах горим
+    { label: 'ГАДАА',    color: '#2A6E1A', action: () => _vrWalkOutside() },
+    { label: 'ДОТОР',    color: '#5E3A1A', action: () => _vrWalkInside() },
+    { label: 'ГАРАХ',    color: '#6E1A1A', action: () => _vrWalkExit() },
+    { label: 'СУРАЛЦАХ', color: '#5E4A1A', action: () => window.toggleLearnMode && window.toggleLearnMode() },
+    // 5) Хана 1-4
+    { label: 'ХАНА 1', color: '#4A4030', action: () => window.toggleKhana && window.toggleKhana(0) },
+    { label: 'ХАНА 2', color: '#4A4030', action: () => window.toggleKhana && window.toggleKhana(1) },
+    { label: 'ХАНА 3', color: '#4A4030', action: () => window.toggleKhana && window.toggleKhana(2) },
+    { label: 'ХАНА 4', color: '#4A4030', action: () => window.toggleKhana && window.toggleKhana(3) },
+    // 6) Хана 5 + модон хэсэг
+    { label: 'ХАНА 5', color: '#4A4030', action: () => window.toggleKhana && window.toggleKhana(4) },
+    { label: 'ХААЛГА', color: '#5A3A1A', action: () => _vrTogglePart('door') },
+    { label: 'БАГАНА', color: '#5A3A1A', action: () => _vrTogglePart('bagana') },
+    { label: 'ТООНО',  color: '#5A3A1A', action: () => _vrTogglePart('toono') },
+    // 7) Унь, дээвэр, туурга
+    { label: 'УНЬ',         color: '#5A3A1A', action: () => _vrTogglePart('un') },
+    { label: 'ДЭЭВЭР',      color: '#5A3A1A', action: () => _vrTogglePart('roof') },
+    { label: 'ГАДНА ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-1') },
+    { label: 'ДОТОР ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-2') },
+    // 8) Бүслүүр + наадам
+    { label: 'ДООД БҮС', color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-1') },
+    { label: 'ДУНД БҮС', color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-2') },
+    { label: 'ДЭЭД БҮС', color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-3') },
+    { label: 'НААДАМ',   color: '#A02828', action: () => window.toggleNaadam && window.toggleNaadam() },
+    // 9) Цаг агаар (1)
+    { label: 'ӨДӨР/ШӨНӨ', color: '#1E1E4E', action: () => window.toggleDayNight && window.toggleDayNight() },
+    { label: 'AUTO ЦАГ',  color: '#1E1E4E', action: () => window.toggleAutoCycle && window.toggleAutoCycle() },
+    { label: 'БОРОО',     color: '#1A3E5E', action: () => window.toggleRain && window.toggleRain() },
+    { label: 'ЦАС',       color: '#3A5A7A', action: () => window.toggleSnow && window.toggleSnow() },
+    // 10) Цаг агаар (2) + дуу
+    { label: 'МАНАН', color: '#3A3A4A', action: () => window.toggleFog && window.toggleFog() },
+    { label: 'ӨВӨЛ',  color: '#2E5E8A', action: () => window.toggleWinter && window.toggleWinter() },
+    { label: 'ДУУ',   color: '#4A2A5E', action: () => window.toggleSound && window.toggleSound() },
+    { label: '',      color: '#2A2A2A', action: () => {} },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -1168,13 +1214,13 @@ _vrTex.minFilter = THREE.LinearFilter;
 _vrTex.magFilter = THREE.LinearFilter;
 
 const _vrMenuMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.22, 0.22),
+    new THREE.PlaneGeometry(0.34, 0.85),
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
 // Толгой дагасан group: A товч дарахад үргэлж яг урд харагдана.
 const _vrMenuGroup = new THREE.Group();
-_vrMenuMesh.position.set(0, -0.08, -0.50);
+_vrMenuMesh.position.set(0, -0.10, -0.70);
 _vrMenuMesh.rotation.y = 0;
 _vrMenuGroup.add(_vrMenuMesh);
 scene.add(_vrMenuGroup);
@@ -1372,6 +1418,15 @@ _vrCtrl.forEach((entry, idx) => {
             const btn = _vrMenuButtons[_vrHoverIdx];
             _vrFlashIdx = _vrHoverIdx;
             _vrFlashUntil = performance.now() + 200;
+            // Slider — uv.x-ийн утгаар бүх ханын fold-ыг тохируулна
+            if (btn && btn.isSlider && _vrSliderFrac >= 0) {
+                const fold = Math.max(0.12, Math.min(1.0, 0.12 + _vrSliderFrac * 0.88));
+                _vrCurrentFold = fold;
+                if (window.setAllFold) window.setAllFold(fold);
+                _drawVRMenu();
+                _tpRing.visible = false;
+                return;
+            }
             _drawVRMenu();
             try { btn && btn.action && btn.action(); }
             catch (e) { console.error('VR menu action:', e); }
@@ -1494,6 +1549,9 @@ function _tickVRControllers() {
                 const bi = row * _VR_COLS + col;
                 if (bi >= 0 && bi < _vrMenuButtons.length) {
                     _vrHoverIdx = bi;
+                    if (_vrMenuButtons[bi].isSlider) {
+                        _vrSliderFrac = Math.max(0, Math.min(1, uv.x));
+                    }
                     ray.scale.z = _vrOrigin.distanceTo(mh[0].point) / 10;
                     ray.material.opacity = 0.95;
                     return;
