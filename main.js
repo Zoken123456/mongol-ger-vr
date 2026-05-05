@@ -1125,32 +1125,48 @@ const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
 
 // Хэсгийн харуулах/нуух toggle — web UI-ийн checkbox-тэй нийлдэг
+// Хэсгийн жинхэнэ visibility-г олох (ger-ийн обьект эсвэл туурга/бүслүүр индекс)
+const _vrIsPartVisible = (name) => {
+    if (name === 'tuurga-1') return ger.getTuurga().getPanels()[0]?.visible ?? false;
+    if (name === 'tuurga-2') return ger.getTuurga().getPanels()[1]?.visible ?? false;
+    if (name === 'bvsluur-1') return ger.getBvsluur().getBands()[0]?.visible ?? false;
+    if (name === 'bvsluur-2') return ger.getBvsluur().getBands()[1]?.visible ?? false;
+    if (name === 'bvsluur-3') return ger.getBvsluur().getBands()[2]?.visible ?? false;
+    return ger.parts[name]?.visible ?? false;
+};
 const _vrTogglePart = (name) => {
+    const v = !_vrIsPartVisible(name);
     const cb = document.getElementById('check-' + name);
-    const v = !(cb?.checked ?? true);
     if (cb) cb.checked = v;
     window.handlePartVisibility(name, v);
 };
 const _vrToggleAll = () => {
+    // Аль нэг гэрийн хэсэг харагдаж байгаа эсэхийг шалгана
+    const anyVisible = ['door','bagana','toono','un','roof'].some(n => _vrIsPartVisible(n))
+        || _vrIsPartVisible('tuurga-1') || _vrIsPartVisible('tuurga-2');
+    const v = !anyVisible;
     const cb = document.getElementById('check-all');
-    const v = !(cb?.checked ?? true);
     if (cb) cb.checked = v;
     window.handlePartVisibility('all', v);
 };
 
-// VR-ын хувьд rig-ийг шилжүүлэн "гадаа/дотор/гарах" хийнэ (walkControls.lock нь VR-д ажиллахгүй)
-const _vrTeleportRig = (x, z, ry = Math.PI / 2) => {
+// VR-ын хувьд rig-ийг шилжүүлэн "гадаа/дотор/гарах" хийнэ.
+// HMD-ийн playspace доторх offset-ийг тооцож, хэрэглэгчийг бодит target дээр хүргэнэ.
+const _vrTpScratchCam = new THREE.Vector3();
+const _vrTeleportRig = (x, z, ry = null) => {
     if (!renderer.xr.isPresenting) return;
     const xrCam = renderer.xr.getCamera();
     const rig = xrCam.parent;
     if (!rig) return;
-    rig.position.set(x, 0, z);
-    rig.rotation.y = ry;
+    if (ry !== null) rig.rotation.y = ry;
     rig.updateMatrixWorld(true);
+    xrCam.getWorldPosition(_vrTpScratchCam);
+    rig.position.x += x - _vrTpScratchCam.x;
+    rig.position.z += z - _vrTpScratchCam.z;
 };
-const _vrWalkOutside = () => _vrTeleportRig(8, 12, Math.PI);      // гадуур — ~8м зайд
-const _vrWalkInside  = () => _vrTeleportRig(0, 3.5, Math.PI);     // дотор — хаалган дотор
-const _vrWalkExit    = () => _vrTeleportRig(6, 0, Math.PI / 2);   // анхны спавн
+const _vrWalkOutside = () => _vrTeleportRig(11, 0,  Math.PI / 2); // +X талд гэр рүү харна
+const _vrWalkInside  = () => _vrTeleportRig(0,  0, -Math.PI / 2); // дотор төв, +X харна
+const _vrWalkExit    = () => _vrTeleportRig(6,  0,  Math.PI / 2); // анхны спавн
 
 const _vrMenuButtons = [
     // 1) Үндсэн үйлдэл
@@ -4957,25 +4973,7 @@ window.buildGer = function () {
     }, d);
     d += 18 * 52 + 400; // 52 уни × 18мс + дуусгахад 0.4сек
 
-    // 6. Дотор бүрээс — 2 эсгий хэсэг (урд, ард)
-    setTimeout(() => {
-        _innerFeltGroup.visible = true;
-        _innerFeltPanels.forEach((p, i) => {
-            p.visible = true;
-            p.scale.y = 0.01;
-            const startT = performance.now();
-            const dur = 600;
-            const step = () => {
-                const t = Math.min(1, (performance.now() - startT) / dur);
-                const e = 1 - Math.pow(1 - t, 3);
-                p.scale.y = e;
-                if (t < 1) requestAnimationFrame(step);
-                else p.scale.y = 1;
-            };
-            setTimeout(step, i * 280);
-        });
-    }, d);
-    d += 280 * 2 + 600 + 200;
+    // 6. Дотор бүрээс — хасагдсан (давхар үе үүсгэж байсан)
 
     // 7. Дээвэр — дээрээс доош (эсгий дээвэр)
     setTimeout(() => {
@@ -4990,25 +4988,7 @@ window.buildGer = function () {
     setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, d);
     d += 700;
 
-    // 9. Гадна цагаан бүрээс — 2 эсгий
-    setTimeout(() => {
-        _outerCoverGroup.visible = true;
-        _outerCoverPanels.forEach((p, i) => {
-            p.visible = true;
-            p.scale.y = 0.01;
-            const startT = performance.now();
-            const dur = 700;
-            const step = () => {
-                const t = Math.min(1, (performance.now() - startT) / dur);
-                const e = 1 - Math.pow(1 - t, 3);
-                p.scale.y = e;
-                if (t < 1) requestAnimationFrame(step);
-                else p.scale.y = 1;
-            };
-            setTimeout(step, i * 320);
-        });
-    }, d);
-    d += 320 * 2 + 700 + 250;
+    // 9. Гадна цагаан бүрээс — хасагдсан (давхар үе үүсгэж байсан)
 
     // 10. Бүслүүр 1-3 — гадна бүрээсийг бэхэлнэ (хамгийн сүүлд)
     for (let i = 0; i < 3; i++) {
