@@ -1445,7 +1445,7 @@ _vrCtrl.forEach((entry, idx) => {
             const btn = _vrMenuButtons[_vrHoverIdx];
             _vrFlashIdx = _vrHoverIdx;
             _vrFlashUntil = performance.now() + 200;
-            // Slider — uv.x-ийн утгаар бүх ханын fold-ыг тохируулна
+            // Slider — uv.x-ийн утгаар бүх ханын fold-ыг тохируулна (slider үед цэс хаадаггүй)
             if (btn && btn.isSlider && _vrSliderFrac >= 0) {
                 const fold = Math.max(0.12, Math.min(1.0, 0.12 + _vrSliderFrac * 0.88));
                 _vrCurrentFold = fold;
@@ -1458,6 +1458,9 @@ _vrCtrl.forEach((entry, idx) => {
             try { btn && btn.action && btn.action(); }
             catch (e) { console.error('VR menu action:', e); }
             _tpRing.visible = false;
+            // Action дараа цэсийг автоматаар хаах — хэрэглэгч үр дүнг шууд харна
+            _vrMenuMesh.visible = false;
+            _vrHoverIdx = -1;
             return;
         }
         // 2) Гэрийн хэсэг рүү заагдсан бол → toggle
@@ -1506,10 +1509,15 @@ function _tickVRLocomotion(dt) {
 
     let mx = 0, my = 0, tx = 0;
     for (const src of session.inputSources) {
-        if (!src.gamepad || src.gamepad.axes.length < 4) continue;
+        if (!src.gamepad) continue;
         const ax = src.gamepad.axes;
-        if (src.handedness === 'left')  { mx = ax[2]; my = ax[3]; }
-        else if (src.handedness === 'right') { tx = ax[2]; }
+        let sx = 0, sy = 0;
+        // xr-standard: axes[2,3] thumbstick. Зарим device-д зөвхөн axes[0,1].
+        if (ax.length >= 4) { sx = ax[2]; sy = ax[3]; }
+        else if (ax.length >= 2) { sx = ax[0]; sy = ax[1]; }
+        else continue;
+        if (src.handedness === 'left')  { mx = sx; my = sy; }
+        else if (src.handedness === 'right') { tx = sx; }
     }
 
     // Чөлөөт хөдөлгөөн — зүүн stick
@@ -4775,6 +4783,12 @@ window.handlePartVisibility = function(name, checked) {
     if (name === 'bvsluur-1') { ger.getBvsluur().setVisible(0, checked); return; }
     if (name === 'bvsluur-2') { ger.getBvsluur().setVisible(1, checked); return; }
     if (name === 'bvsluur-3') { ger.getBvsluur().setVisible(2, checked); return; }
+    // Унь — toggle on хийх үед bar-уудыг бас сэргээнэ (scale + visible).
+    // (build анимац дундуур таслагдсан бол bar-ууд scale=0.01 байж магадгүй)
+    if (name === 'un' && checked) {
+        const uniGrp = ger.parts['un'];
+        if (uniGrp) uniGrp.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
+    }
     ger.setPartVisibility(name, checked);
 };
 
