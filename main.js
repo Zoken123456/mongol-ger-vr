@@ -1119,8 +1119,8 @@ const _vrCtrl = [0, 1].map(i => {
 });
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
-const _VR_COLS = 4, _VR_ROWS = 8;
-const _VR_CV_W = 640, _VR_CV_H = 1024;
+const _VR_COLS = 2, _VR_ROWS = 2;
+const _VR_CV_W = 512, _VR_CV_H = 512;
 const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
 
@@ -1153,56 +1153,10 @@ const _vrWalkInside  = () => _vrTeleportRig(0, 3.5, Math.PI);     // дотор 
 const _vrWalkExit    = () => _vrTeleportRig(6, 0, Math.PI / 2);   // анхны спавн
 
 const _vrMenuButtons = [
-    // Row 1 — Үндсэн үйлдлүүд
-    { label: 'ГЭР БАРИХ',  color: '#1E4E8C', action: () => window.buildGer() },
-    { label: 'БҮГД',        color: '#3A5A3A', action: () => _vrToggleAll() },
-    { label: 'ЭВХЭХ',       color: '#555555', action: () => window.setAllFold(0.12) },
-    { label: 'ДЭЛГЭХ',      color: '#555555', action: () => window.setAllFold(1.0) },
-    // Row 2 — Ханын scroll (4 slot-ыг нэгтгэсэн slider)
-    { label: 'ХАНА', color: '#D89030', isSlider: true, action: () => {} },
-    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
-    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
-    { label: '',     color: '#D89030', isSlider: true, action: () => {} },
-    // Row 3 — Хаалга, эргүүлэх, буцах
-    { label: 'ХААЛГА НЭЭХ', color: '#2A6E1A', action: () => window.openDoor() },
-    { label: 'ХААЛГА ХААХ', color: '#6E1A1A', action: () => window.closeDoor() },
-    { label: 'ЭРГҮҮЛЭХ',    color: '#555555', action: () => window.toggleRotation() },
-    { label: 'БУЦАХ',       color: '#555555', action: () => window.resetView() },
-    // Row 4 — Явах горим + Суралцах
-    { label: 'ГАДАА ЯВАХ',  color: '#2A6E1A', action: () => _vrWalkOutside() },
-    { label: 'ДОТОР ОРОХ',  color: '#2A6E1A', action: () => _vrWalkInside() },
-    { label: 'ГАРАХ',       color: '#6E1A1A', action: () => _vrWalkExit() },
-    { label: 'СУРАЛЦАХ',    color: '#5E4A1A', action: () => window.toggleLearnMode() },
-    // Row 5 — Хана 1-4
-    { label: 'ХАНА 1',      color: '#4A4030', action: () => window.toggleKhana(0) },
-    { label: 'ХАНА 2',      color: '#4A4030', action: () => window.toggleKhana(1) },
-    { label: 'ХАНА 3',      color: '#4A4030', action: () => window.toggleKhana(2) },
-    { label: 'ХАНА 4',      color: '#4A4030', action: () => window.toggleKhana(3) },
-    // Row 6 — Хана 5 + модон хэсэг
-    { label: 'ХАНА 5',      color: '#4A4030', action: () => window.toggleKhana(4) },
-    { label: 'ХААЛГА',      color: '#5A3A1A', action: () => _vrTogglePart('door') },
-    { label: 'БАГАНА',      color: '#5A3A1A', action: () => _vrTogglePart('bagana') },
-    { label: 'ТООНО',       color: '#5A3A1A', action: () => _vrTogglePart('toono') },
-    // Row 7 — Үлдсэн модон хэсэг + туурга
-    { label: 'УНЬ',         color: '#5A3A1A', action: () => _vrTogglePart('un') },
-    { label: 'ДЭЭВЭР',      color: '#5A3A1A', action: () => _vrTogglePart('roof') },
-    { label: 'ГАДНА ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-1') },
-    { label: 'ДОТОР ТУУРГА', color: '#4A3A2A', action: () => _vrTogglePart('tuurga-2') },
-    // Row 8 — Бүслүүр + Наадам
-    { label: 'ДООД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-1') },
-    { label: 'ДУНД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-2') },
-    { label: 'ДЭЭД БҮС',    color: '#3A3A4A', action: () => _vrTogglePart('bvsluur-3') },
-    { label: 'НААДАМ',      color: '#A02828', action: () => window.toggleNaadam() },
-    // Row 9 — Цаг агаар (1)
-    { label: 'ӨДӨР/ШӨНӨ',   color: '#1E1E4E', action: () => window.toggleDayNight() },
-    { label: 'AUTO ЦАГ',    color: '#1E1E4E', action: () => window.toggleAutoCycle() },
-    { label: 'БОРОО',       color: '#1A3E5E', action: () => window.toggleRain() },
-    { label: 'ЦАС',         color: '#3A5A7A', action: () => window.toggleSnow() },
-    // Row 10 — Цаг агаар (2) + Дуу
-    { label: 'МАНАН',       color: '#3A3A4A', action: () => window.toggleFog() },
-    { label: 'ӨВӨЛ',        color: '#2E5E8A', action: () => window.toggleWinter() },
-    { label: 'ДУУ',         color: '#4A2A5E', action: () => window.toggleSound() },
-    { label: '',            color: '#2A2A2A', action: () => {} },
+    { label: 'ГЭР БАРИХ', color: '#1E4E8C', action: () => window.buildGer && window.buildGer() },
+    { label: 'БҮГДИЙГ',   color: '#3A5A3A', action: () => _vrToggleAll() },
+    { label: 'ГАДАА',     color: '#2A6E1A', action: () => _vrWalkOutside() },
+    { label: 'ДОТОР',     color: '#5E3A1A', action: () => _vrWalkInside() },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -1214,20 +1168,18 @@ _vrTex.minFilter = THREE.LinearFilter;
 _vrTex.magFilter = THREE.LinearFilter;
 
 const _vrMenuMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.32, 0.64),
+    new THREE.PlaneGeometry(0.22, 0.22),
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
-// Цэсийг толгой дагасан group-д байршуулна — харааны талбарын төв хэсэгт,
-// хаана ч очсон тогтмол харагдана.
+// Толгой дагасан group: A товч дарахад үргэлж яг урд харагдана.
 const _vrMenuGroup = new THREE.Group();
-_vrMenuMesh.position.set(0, -0.10, -0.65);      // голд, бага зэрэг доош, 65см өмнө
-_vrMenuMesh.rotation.y = 0;                     // шууд камер руу харуулна
+_vrMenuMesh.position.set(0, -0.08, -0.50);
+_vrMenuMesh.rotation.y = 0;
 _vrMenuGroup.add(_vrMenuMesh);
 scene.add(_vrMenuGroup);
 _vrMenuMesh.visible = false;
 
-// Цэсийн group-ийг VR камерын дагуу кадр тутамд дагуулна
 const _vrCamPos = new THREE.Vector3();
 const _vrCamQuat = new THREE.Quaternion();
 function _tickVRMenuHeadLock() {
@@ -1347,23 +1299,25 @@ renderer.xr.addEventListener('sessionstart', () => { _vrMenuMesh.visible = false
 renderer.xr.addEventListener('sessionend',   () => { _vrMenuMesh.visible = false; });
 
 // A (right) эсвэл X (left) товчийг дарахад цэсийг toggle хийнэ
-// A/X button (buttons[4]) — гэр барих анимаци эхлүүлнэ (3D цэс байхгүй)
-let _vrBuildBtnPrev = false;
+// БАРУУН гарын A товч (buttons[4]) — VR цэс toggle (нээх/хаах)
+let _vrMenuBtnPrev = false;
 function _pollVRMenuToggle() {
     if (!renderer.xr.isPresenting) return;
     const session = renderer.xr.getSession();
     if (!session) return;
     let pressed = false;
     for (const src of session.inputSources) {
+        if (src.handedness !== 'right') continue;
         if (src.gamepad && src.gamepad.buttons[4] && src.gamepad.buttons[4].pressed) {
             pressed = true;
             break;
         }
     }
-    if (pressed && !_vrBuildBtnPrev && window.buildGer) {
-        try { window.buildGer(); } catch (e) { console.error('VR buildGer:', e); }
+    if (pressed && !_vrMenuBtnPrev) {
+        _vrMenuMesh.visible = !_vrMenuMesh.visible;
+        if (_vrMenuMesh.visible) _drawVRMenu();
     }
-    _vrBuildBtnPrev = pressed;
+    _vrMenuBtnPrev = pressed;
 }
 
 // VR хэсгэд хүрэх (highlight) + сонгож toggle хийх
@@ -1413,13 +1367,24 @@ _vrCtrl.forEach((entry, idx) => {
     entry.ctrl.addEventListener('selectstart', () => { entry.tpReady = true; });
     entry.ctrl.addEventListener('selectend', () => {
         entry.tpReady = false;
-        // 1) Гэрийн хэсэг рүү заагдсан бол → toggle
+        // 1) VR цэс дээр заагдсан бол → action гүйцэтгэнэ
+        if (_vrHoverIdx >= 0 && _vrMenuMesh.visible) {
+            const btn = _vrMenuButtons[_vrHoverIdx];
+            _vrFlashIdx = _vrHoverIdx;
+            _vrFlashUntil = performance.now() + 200;
+            _drawVRMenu();
+            try { btn && btn.action && btn.action(); }
+            catch (e) { console.error('VR menu action:', e); }
+            _tpRing.visible = false;
+            return;
+        }
+        // 2) Гэрийн хэсэг рүү заагдсан бол → toggle
         if (_vrHoveredPart) {
             _vrTogglePartByObject(_vrHoveredPart);
             _tpRing.visible = false;
             return;
         }
-        // 2) Газарт заагдсан бол → teleport (rig-ийг шилжүүлнэ)
+        // 3) Газарт заагдсан бол → teleport (rig-ийг шилжүүлнэ)
         if (_tpRing.visible) {
             const pos = _tpRing.position;
             const xrCam = renderer.xr.getCamera();
@@ -1473,15 +1438,16 @@ function _tickVRLocomotion(dt) {
         rig.position.addScaledVector(_vrLocRight,  mx * _VR_MOVE_SPEED * dt);
     }
 
-    // Snap-turn — баруун stick (head-pivot эргэнэ)
+    // Snap-turn — баруун stick (HMD pivot эргэнэ, хэрэглэгч тогтсон цэгтээ үлдэнэ)
     if (Math.abs(tx) > 0.7 && _vrSnapReady) {
         xrCam.getWorldPosition(_vrLocCam);
         const dx = rig.position.x - _vrLocCam.x;
         const dz = rig.position.z - _vrLocCam.z;
         const a  = -Math.sign(tx) * _VR_SNAP_ANGLE;
         const c  = Math.cos(a), s = Math.sin(a);
-        rig.position.x = _vrLocCam.x + dx * c - dz * s;
-        rig.position.z = _vrLocCam.z + dx * s + dz * c;
+        // R_y(a)-ийг (dx,dz)-д хэрэглэх: x' = dx*c + dz*s,  z' = -dx*s + dz*c
+        rig.position.x = _vrLocCam.x + dx * c + dz * s;
+        rig.position.z = _vrLocCam.z - dx * s + dz * c;
         rig.rotation.y += a;
         _vrSnapReady = false;
     } else if (Math.abs(tx) < 0.3) {
@@ -1503,6 +1469,7 @@ function _tickVRControllers() {
         return;
     }
 
+    const prevHover = _vrHoverIdx;
     _vrHoverIdx = -1;
     _vrSliderFrac = -1;
     let anyTp = false;
@@ -1517,7 +1484,24 @@ function _tickVRControllers() {
         _vrDir.set(0, 0, -1).applyQuaternion(_vrQuat);
         _vrRay.set(_vrOrigin, _vrDir);
 
-        // 1) Гэрийн хэсэг (isClickMesh) рүү заасан эсэх
+        // 1) Цэс харагдаж байгаа бол түүн дээр заасан эсэхийг шалгана
+        if (_vrMenuMesh.visible) {
+            const mh = _vrRay.intersectObject(_vrMenuMesh);
+            if (mh.length > 0 && mh[0].uv) {
+                const uv = mh[0].uv;
+                const col = Math.min(_VR_COLS - 1, Math.floor(uv.x * _VR_COLS));
+                const row = Math.min(_VR_ROWS - 1, Math.floor((1 - uv.y) * _VR_ROWS));
+                const bi = row * _VR_COLS + col;
+                if (bi >= 0 && bi < _vrMenuButtons.length) {
+                    _vrHoverIdx = bi;
+                    ray.scale.z = _vrOrigin.distanceTo(mh[0].point) / 10;
+                    ray.material.opacity = 0.95;
+                    return;
+                }
+            }
+        }
+
+        // 2) Гэрийн хэсэг (isClickMesh) рүү заасан эсэх
         const partHits = _vrRay.intersectObjects(ger.getObject3D().children, true)
             .filter(h => h.object.userData && h.object.userData.isClickMesh);
         if (partHits.length > 0) {
@@ -1531,7 +1515,7 @@ function _tickVRControllers() {
             }
         }
 
-        // 2) Газарт зааж teleport (зөвхөн trigger даралттай үед)
+        // 3) Газарт зааж teleport (зөвхөн trigger даралттай үед)
         if (!tpReady) { ray.scale.z = 1; ray.material.opacity = 0.35; return; }
         const hits = _vrRay.intersectObject(ground);
         if (hits.length > 0) {
@@ -1548,6 +1532,10 @@ function _tickVRControllers() {
 
     _vrSetHoveredPart(nearestPart);
     if (!anyTp) _tpRing.visible = false;
+
+    if (_vrHoverIdx !== prevHover || performance.now() < _vrFlashUntil) {
+        _drawVRMenu();
+    }
 }
 
 
