@@ -1265,65 +1265,44 @@ window.toggleExplode = _vrToggleExplode;
 
 function _vrExplode() {
     _explodedMode = true;
-    _scatterRemaining.clear();
-    _scatterKeyByUuid.clear();
-
-    // Хана хадгаламжтай (folded, ханын байранд) — хүүхдэд цэвэр харагдана
+    // Бүх хэсгийг нуух — гэр алга болно
+    ger.setKhanaVisible(-1, false);
+    ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, false));
+    ger.getTuurga().setVisible(-1, false);
+    ger.getBvsluur().setVisible(-1, false);
+    _innerFeltGroup.visible = false;
+    _outerCoverGroup.visible = false;
+    _innerFeltPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
+    _outerCoverPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
+    const uniGrp = ger.parts['un'];
+    if (uniGrp) uniGrp.children.forEach(b => b.scale.set(1, 1, 1));
+    [...ger.getTuurga().getPanels(),
+     ...ger.getBvsluur().getBands(),
+     ger.parts['bagana'], ger.parts['toono'], ger.parts['roof'], ger.parts['door']
+    ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
     ger.setKhanaFold(-1, 0.08);
-
-    Object.entries(PART_INFO).forEach(([key, info]) => {
-        const target = _getPartTarget(key);
-        if (!target) return;
-        target.visible = true;
-        if (target === ger.parts['un']) {
-            target.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
-        }
-        const scatterPos = _SCATTER[key]
-            ? new THREE.Vector3(_SCATTER[key][0], 0.5, _SCATTER[key][1])
-            : (() => { const h = _getHome(target).clone(); h.y = 0.5; return h; })();
-        animTo(target, scatterPos, 0.95);
-        _scatterRemaining.add(target.uuid);
-        _scatterKeyByUuid.set(target.uuid, key);
-        const panel = _infoPanels[key];
-        if (panel) {
-            panel.position.copy(scatterPos);
-            panel.position.y += 1.4;
-            panel.visible = true;
-        }
-    });
-    _showMission('Хэсгүүд дээр\nдарж гэр барь!', 3500);
+    Object.values(_infoPanels).forEach(p => p.visible = false);
+    _showMission('Гэр задлагдлаа.', 1800);
 }
 
 function _vrAssemble() {
     _explodedMode = false;
-    _scatterRemaining.clear();
-    _scatterKeyByUuid.clear();
-    Object.entries(PART_INFO).forEach(([key]) => {
-        const target = _getPartTarget(key);
-        if (!target) return;
-        animTo(target, _getHome(target), 0.95);
-        const panel = _infoPanels[key];
-        if (panel) panel.visible = false;
-    });
+    // Бүгдийг буцаан харуулна
+    ger.setKhanaVisible(-1, true);
     ger.setKhanaFold(-1, 1.0);
-    _showMission('Гэр буцаж нэгтгэлээ.', 1800);
-}
-
-// Scatter дээр байгаа хэсгийг home рүү буцаах (гар аргаар нэг нэгээр нь барих)
-function _vrPartToHome(target) {
-    if (!target || !_scatterRemaining.has(target.uuid)) return false;
-    animTo(target, _getHome(target), 0.85);
-    _scatterRemaining.delete(target.uuid);
-    const key = _scatterKeyByUuid.get(target.uuid);
-    _scatterKeyByUuid.delete(target.uuid);
-    if (key && _infoPanels[key]) _infoPanels[key].visible = false;
-    _showMission('Сайн байна!', 1200);
-    if (_scatterRemaining.size === 0) {
-        _explodedMode = false;
-        ger.setKhanaFold(-1, 1.0);  // ханаа дэлгэнэ
-        setTimeout(() => _showMission('Гэрээ амжилттай\nбариллаа! ★', 3000), 1200);
-    }
-    return true;
+    ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, true));
+    ger.getTuurga().setVisible(-1, true);
+    ger.getBvsluur().setVisible(-1, true);
+    [...ger.getTuurga().getPanels(),
+     ...ger.getBvsluur().getBands(),
+     ger.parts['bagana'], ger.parts['toono'], ger.parts['roof'], ger.parts['door'],
+     ger.parts['un']
+    ].forEach(o => { if (o) { _anims.delete(o.uuid); o.position.copy(_getHome(o)); } });
+    // Унийн bar-уудын scale + visible-ийг сэргээх (анимацаас дутуу байсан бол)
+    const uniGrp = ger.parts['un'];
+    if (uniGrp) uniGrp.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
+    Object.values(_infoPanels).forEach(p => p.visible = false);
+    _showMission('Гэр буцаж нэгтгэлээ.', 1500);
 }
 
 // Info panel-ууд камер руу үргэлж харна (billboard)
