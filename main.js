@@ -1258,6 +1258,7 @@ let _explodedMode = false;
 function _vrToggleExplode() {
     if (_explodedMode) _vrAssemble(); else _vrExplode();
 }
+window.toggleExplode = _vrToggleExplode;
 function _vrExplode() {
     _explodedMode = true;
     Object.entries(PART_INFO).forEach(([key, info]) => {
