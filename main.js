@@ -1260,7 +1260,6 @@ function _vrToggleExplode() {
 }
 function _vrExplode() {
     _explodedMode = true;
-    const off = 1.6;
     Object.entries(PART_INFO).forEach(([key, info]) => {
         const target = _getPartTarget(key);
         if (!target) return;
@@ -1268,37 +1267,35 @@ function _vrExplode() {
         if (target === ger.parts['un']) {
             target.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
         }
-        const home = _getHome(target);
-        const dir = new THREE.Vector3(home.x, 0, home.z);
-        if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
-        dir.normalize();
-        // Багана төв дээр байдаг тул жижиг random offset өгье
-        if (key === 'bagana' || key === 'toono') {
-            dir.set(Math.cos(Math.random() * Math.PI * 2), 0, Math.sin(Math.random() * Math.PI * 2));
+        // Газар дээрх scatter байрлал руу нисэн буух
+        let scatterPos;
+        if (_SCATTER[key]) {
+            scatterPos = new THREE.Vector3(_SCATTER[key][0], 0.5, _SCATTER[key][1]);
+        } else {
+            // унь — гэрийн дэргэд
+            scatterPos = _getHome(target).clone();
+            scatterPos.y = 0.5;
         }
-        const target2 = home.clone().add(dir.clone().multiplyScalar(off));
-        // Унь хэсэг бол дээш нь өргөе
-        if (key === 'un' || key === 'roof' || key === 'toono') target2.y += 1.2;
-        animTo(target, target2, 0.85);
+        animTo(target, scatterPos, 0.95);
         const panel = _infoPanels[key];
         if (panel) {
-            panel.position.copy(target2);
-            panel.position.y += 0.8;
+            panel.position.copy(scatterPos);
+            panel.position.y += 1.4;
             panel.visible = true;
         }
     });
-    _showMission('Хэсгүүдийг ажиглаарай!\nДахин дарж нэгтгэнэ.', 3500);
+    _showMission('Гэр задлагдлаа.\nХэсгүүдийг ажиглаарай.', 3500);
 }
 function _vrAssemble() {
     _explodedMode = false;
     Object.entries(PART_INFO).forEach(([key]) => {
         const target = _getPartTarget(key);
         if (!target) return;
-        animTo(target, _getHome(target), 0.85);
+        animTo(target, _getHome(target), 0.95);
         const panel = _infoPanels[key];
         if (panel) panel.visible = false;
     });
-    _showMission('Гэрээ нэгтгэлээ.', 1800);
+    _showMission('Гэр буцаж нэгтгэлээ.', 1800);
 }
 
 // Info panel-ууд камер руу үргэлж харна (billboard)
@@ -1427,7 +1424,7 @@ const _vrMenuButtons = [
     { label: 'МАНАН', color: '#3A3A4A', action: () => window.toggleFog && window.toggleFog() },
     { label: 'ӨВӨЛ',  color: '#2E5E8A', action: () => window.toggleWinter && window.toggleWinter() },
     { label: 'ДУУ',   color: '#4A2A5E', action: () => window.toggleSound && window.toggleSound() },
-    { label: 'ЗАДЛАХ', color: '#A04020', action: () => _vrToggleExplode() },
+    { label: 'ГЭР ЗАДЛАХ', color: '#A04020', action: () => _vrToggleExplode() },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -5136,12 +5133,14 @@ const _ANIM_DOOR_MS = 400;
 
 function _animToono() {
     const o = ger.parts['toono'], h = _getHome(o);
+    o.visible = true;
     animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['toono']));
 }
 const _ANIM_TOONO_MS = 800;
 
 function _animBagana() {
     const o = ger.parts['bagana'], h = _getHome(o);
+    o.visible = true;
     animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['bagana']));
 }
 const _ANIM_BAGANA_MS = 800;
@@ -5174,20 +5173,20 @@ const _ANIM_UNI_MS = 18 * 52 + 400;
 
 function _animRoof() {
     const o = ger.parts['roof'];
-    ger.setPartVisibility('roof', true);
+    o.visible = true;
     animTo(o, _getHome(o), 0.9, _getHome(o).clone().add(new THREE.Vector3(0, 9, 0)));
 }
 const _ANIM_ROOF_MS = 1000;
 
 function _animTuurga() {
-    setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, 0);
-    setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, 320);
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; p.visible = true; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, 0);
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; p.visible = true; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, 320);
 }
 const _ANIM_TUURGA_MS = 1100;
 
 function _animBvsluur() {
     for (let i = 0; i < 3; i++) {
-        setTimeout(() => { const b = ger.getBvsluur().getBands()[i]; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, i * 220);
+        setTimeout(() => { const b = ger.getBvsluur().getBands()[i]; b.visible = true; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, i * 220);
     }
 }
 const _ANIM_BVSLUUR_MS = 3 * 220 + 500;
@@ -5205,12 +5204,25 @@ const _BUILD_STEPS = [
 ];
 let _buildAdvance = null; // trigger-ээр advance хийх callback
 
+// Газар дээр scatter байрлуулах (зөвхөн ЗАДЛАХ үед ашиглана)
+const _SCATTER = {
+    'door':      [-7,  0],
+    'toono':     [ 8,  5],
+    'bagana':    [ 5, -8],
+    'roof':      [-5,  8],
+    'tuurga-1':  [ 3, -7],
+    'tuurga-2':  [-8, -3],
+    'bvsluur-1': [ 6,  7],
+    'bvsluur-2': [-3, -8],
+    'bvsluur-3': [-7,  5],
+};
+
 function _resetGerForBuild() {
+    // Бүх хэсгийг нуух — алхам бүрд анимацтай гарч ирнэ
     ger.setKhanaVisible(-1, false);
-    ['door', 'bagana', 'toono', 'un'].forEach(id => ger.setPartVisibility(id, false));
+    ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, false));
     ger.getTuurga().setVisible(-1, false);
     ger.getBvsluur().setVisible(-1, false);
-    ger.setPartVisibility('roof', false);
     _innerFeltGroup.visible = false;
     _outerCoverGroup.visible = false;
     _innerFeltPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
@@ -5219,7 +5231,7 @@ function _resetGerForBuild() {
     if (uniGrp) uniGrp.children.forEach(b => b.scale.set(1, 1, 1));
     [...ger.getTuurga().getPanels(),
      ...ger.getBvsluur().getBands(),
-     ger.parts['bagana'], ger.parts['toono'], ger.parts['roof']
+     ger.parts['bagana'], ger.parts['toono'], ger.parts['roof'], ger.parts['door']
     ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
     ger.setKhanaFold(-1, 0.08);
 }
