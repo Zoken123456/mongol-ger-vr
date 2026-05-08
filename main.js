@@ -1255,12 +1255,22 @@ function _initInfoPanels() {
 _initInfoPanels();
 
 let _explodedMode = false;
+const _scatterRemaining = new Set();        // uuid-ууд (хэсгүүд хараахан тавиагүй)
+const _scatterKeyByUuid = new Map();        // uuid → PART_INFO key
+
 function _vrToggleExplode() {
     if (_explodedMode) _vrAssemble(); else _vrExplode();
 }
 window.toggleExplode = _vrToggleExplode;
+
 function _vrExplode() {
     _explodedMode = true;
+    _scatterRemaining.clear();
+    _scatterKeyByUuid.clear();
+
+    // Хана хадгаламжтай (folded, ханын байранд) — хүүхдэд цэвэр харагдана
+    ger.setKhanaFold(-1, 0.08);
+
     Object.entries(PART_INFO).forEach(([key, info]) => {
         const target = _getPartTarget(key);
         if (!target) return;
@@ -1268,16 +1278,12 @@ function _vrExplode() {
         if (target === ger.parts['un']) {
             target.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
         }
-        // Газар дээрх scatter байрлал руу нисэн буух
-        let scatterPos;
-        if (_SCATTER[key]) {
-            scatterPos = new THREE.Vector3(_SCATTER[key][0], 0.5, _SCATTER[key][1]);
-        } else {
-            // унь — гэрийн дэргэд
-            scatterPos = _getHome(target).clone();
-            scatterPos.y = 0.5;
-        }
+        const scatterPos = _SCATTER[key]
+            ? new THREE.Vector3(_SCATTER[key][0], 0.5, _SCATTER[key][1])
+            : (() => { const h = _getHome(target).clone(); h.y = 0.5; return h; })();
         animTo(target, scatterPos, 0.95);
+        _scatterRemaining.add(target.uuid);
+        _scatterKeyByUuid.set(target.uuid, key);
         const panel = _infoPanels[key];
         if (panel) {
             panel.position.copy(scatterPos);
@@ -1285,10 +1291,13 @@ function _vrExplode() {
             panel.visible = true;
         }
     });
-    _showMission('Гэр задлагдлаа.\nХэсгүүдийг ажиглаарай.', 3500);
+    _showMission('Хэсгүүд дээр\nдарж гэр барь!', 3500);
 }
+
 function _vrAssemble() {
     _explodedMode = false;
+    _scatterRemaining.clear();
+    _scatterKeyByUuid.clear();
     Object.entries(PART_INFO).forEach(([key]) => {
         const target = _getPartTarget(key);
         if (!target) return;
@@ -1296,7 +1305,25 @@ function _vrAssemble() {
         const panel = _infoPanels[key];
         if (panel) panel.visible = false;
     });
+    ger.setKhanaFold(-1, 1.0);
     _showMission('Гэр буцаж нэгтгэлээ.', 1800);
+}
+
+// Scatter дээр байгаа хэсгийг home рүү буцаах (гар аргаар нэг нэгээр нь барих)
+function _vrPartToHome(target) {
+    if (!target || !_scatterRemaining.has(target.uuid)) return false;
+    animTo(target, _getHome(target), 0.85);
+    _scatterRemaining.delete(target.uuid);
+    const key = _scatterKeyByUuid.get(target.uuid);
+    _scatterKeyByUuid.delete(target.uuid);
+    if (key && _infoPanels[key]) _infoPanels[key].visible = false;
+    _showMission('Сайн байна!', 1200);
+    if (_scatterRemaining.size === 0) {
+        _explodedMode = false;
+        ger.setKhanaFold(-1, 1.0);  // ханаа дэлгэнэ
+        setTimeout(() => _showMission('Гэрээ амжилттай\nбариллаа! ★', 3000), 1200);
+    }
+    return true;
 }
 
 // Info panel-ууд камер руу үргэлж харна (billboard)
@@ -1663,8 +1690,14 @@ _vrCtrl.forEach((entry, idx) => {
             _vrHoverIdx = -1;
             return;
         }
-        // 2) Гэрийн хэсэг рүү заагдсан бол → toggle
+        // 2) Гэрийн хэсэг рүү заагдсан бол:
+        //    - Задлагдсан үед scatter дээрх хэсэгт дарвал тэр нь home рүү буцна
+        //    - Бусад үед toggle
         if (_vrHoveredPart) {
+            if (_explodedMode && _vrPartToHome(_vrHoveredPart)) {
+                _tpRing.visible = false;
+                return;
+            }
             _vrTogglePartByObject(_vrHoveredPart);
             _tpRing.visible = false;
             return;
@@ -5061,6 +5094,9 @@ renderer.domElement.addEventListener('click', e => {
     const target = _getToggleAncestor(hits[0].object);
     if (!target) return;
 
+    // Гэр задласан үед scatter хэсэг дээр дарвал → home руу буцна
+    if (_explodedMode && _vrPartToHome(target)) return;
+
     const home   = _getHome(target);
     const offset = ENTRY_OFFSETS[target.name] ?? new THREE.Vector3(0, 8, 0);
 
@@ -5205,17 +5241,17 @@ const _BUILD_STEPS = [
 ];
 let _buildAdvance = null; // trigger-ээр advance хийх callback
 
-// Газар дээр scatter байрлуулах (зөвхөн ЗАДЛАХ үед ашиглана)
+// ЗАДЛАХ үед газар дээр эрэмбэлсэн 3×3 grid (гэрийн +X талд)
 const _SCATTER = {
-    'door':      [-7,  0],
-    'toono':     [ 8,  5],
-    'bagana':    [ 5, -8],
-    'roof':      [-5,  8],
-    'tuurga-1':  [ 3, -7],
-    'tuurga-2':  [-8, -3],
-    'bvsluur-1': [ 6,  7],
-    'bvsluur-2': [-3, -8],
-    'bvsluur-3': [-7,  5],
+    'door':      [10, -2],
+    'toono':     [10,  0],
+    'bagana':    [10,  2],
+    'roof':      [12, -2],
+    'tuurga-1':  [12,  0],
+    'tuurga-2':  [12,  2],
+    'bvsluur-1': [14, -2],
+    'bvsluur-2': [14,  0],
+    'bvsluur-3': [14,  2],
 };
 
 function _resetGerForBuild() {
