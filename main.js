@@ -1637,6 +1637,13 @@ function _vrTogglePartByObject(target) {
 _vrCtrl.forEach((entry, idx) => {
     entry.ctrl.addEventListener('selectstart', () => {
         entry.tpReady = true;
+        // 0) Гар аргаар барих горимд хүлээж байгаа бол → дараагийн алхамд орно
+        if (entry.handedness === 'right' && _buildAdvance) {
+            const fn = _buildAdvance;
+            _buildAdvance = null;
+            try { fn(); } catch (e) { console.error('build advance:', e); }
+            return;
+        }
         // 1) VR цэс дээр заагдсан бол → action гүйцэтгэнэ
         if (_vrHoverIdx >= 0 && _vrMenuMesh.visible) {
             const btn = _vrMenuButtons[_vrHoverIdx];
@@ -5040,6 +5047,13 @@ renderer.domElement.addEventListener('mousemove', e => {
 
 renderer.domElement.addEventListener('click', e => {
     if (isWalking) return;
+    // 0) Гар аргаар барих хүлээж байвал → дараагийн алхам
+    if (_buildAdvance) {
+        const fn = _buildAdvance;
+        _buildAdvance = null;
+        try { fn(); } catch (err) { console.error('build advance:', err); }
+        return;
+    }
     _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
     _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     _ray.setFromCamera(_mouse, camera);
@@ -5093,33 +5107,160 @@ window._resetGerForVR = function () {
     ger.setKhanaFold(-1, 0.12);
 };
 
-window.buildGer = function () {
-    // Бүгдийг нуух — давталтгүй цэвэр эхлэл
+// ── ГЭРИЙН АЛХМЫН АНИМАЦИЙН ТУСДАА ФУНКЦУУД ────────────────
+function _animKhana() {
+    const KD = 1100, KG = 480;
+    for (let i = 0; i < 5; i++) {
+        const idx = i;
+        setTimeout(() => {
+            ger.setKhanaVisible(idx, true);
+            ger.setKhanaFold(idx, 0.08);
+            const start = performance.now();
+            const step = () => {
+                const t = Math.min(1, (performance.now() - start) / KD);
+                const e = 1 - Math.pow(1 - t, 3);
+                const overshoot = Math.sin(t * Math.PI) * 0.04;
+                const r = 0.08 + (1.0 - 0.08) * e + overshoot;
+                ger.setKhanaFold(idx, Math.min(1.04, r));
+                if (t < 1) requestAnimationFrame(step);
+                else ger.setKhanaFold(idx, 1.0);
+            };
+            step();
+        }, idx * KG);
+    }
+}
+const _ANIM_KHANA_MS = 5 * 480 + 1100 + 200;
+
+function _animDoor() { ger.setPartVisibility('door', true); }
+const _ANIM_DOOR_MS = 400;
+
+function _animToono() {
+    const o = ger.parts['toono'], h = _getHome(o);
+    animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['toono']));
+}
+const _ANIM_TOONO_MS = 800;
+
+function _animBagana() {
+    const o = ger.parts['bagana'], h = _getHome(o);
+    animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['bagana']));
+}
+const _ANIM_BAGANA_MS = 800;
+
+function _animUni() {
+    ger.setPartVisibility('un', true);
+    const grp = ger.parts['un'];
+    if (!grp || !grp.children) return;
+    const bars = grp.children;
+    bars.forEach(b => { b.visible = false; b.scale.set(0.01, 0.01, 0.01); });
+    bars.forEach((b, i) => {
+        setTimeout(() => {
+            b.visible = true;
+            const startT = performance.now();
+            const dur = 280;
+            const step = () => {
+                const t = Math.min(1, (performance.now() - startT) / dur);
+                const e = 1 - Math.pow(1 - t, 3);
+                const back = 1 + (Math.sin(t * Math.PI) * 0.15);
+                const sc = e * back;
+                b.scale.set(sc, sc, sc);
+                if (t < 1) requestAnimationFrame(step);
+                else b.scale.set(1, 1, 1);
+            };
+            step();
+        }, i * 18);
+    });
+}
+const _ANIM_UNI_MS = 18 * 52 + 400;
+
+function _animRoof() {
+    const o = ger.parts['roof'];
+    ger.setPartVisibility('roof', true);
+    animTo(o, _getHome(o), 0.9, _getHome(o).clone().add(new THREE.Vector3(0, 9, 0)));
+}
+const _ANIM_ROOF_MS = 1000;
+
+function _animTuurga() {
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, 0);
+    setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, 320);
+}
+const _ANIM_TUURGA_MS = 1100;
+
+function _animBvsluur() {
+    for (let i = 0; i < 3; i++) {
+        setTimeout(() => { const b = ger.getBvsluur().getBands()[i]; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, i * 220);
+    }
+}
+const _ANIM_BVSLUUR_MS = 3 * 220 + 500;
+
+// ── ГАР АРГААР БАРИХ — алхам бүрд trigger хүлээнэ ───────────
+const _BUILD_STEPS = [
+    { prompt: 'Эхлээд ханыг дэлгэе.',         do: _animKhana,   ms: _ANIM_KHANA_MS,   ok: 'Сайн байна!' },
+    { prompt: 'Урд талд хаалгаа тавья.',       do: _animDoor,    ms: _ANIM_DOOR_MS,    ok: 'Сайн байна!' },
+    { prompt: 'Тооноо дээрээс буулгая.',       do: _animToono,   ms: _ANIM_TOONO_MS,   ok: 'Сайн байна!' },
+    { prompt: 'Тооныг дэмжих\nбагануудаа босгоё.', do: _animBagana, ms: _ANIM_BAGANA_MS, ok: 'Сайн байна!' },
+    { prompt: 'Униа тойруулан\nхатгацгаая.',    do: _animUni,     ms: _ANIM_UNI_MS,     ok: 'Сайн байна!' },
+    { prompt: 'Эсгий дээврээ тавья.',          do: _animRoof,    ms: _ANIM_ROOF_MS,    ok: 'Сайн байна!' },
+    { prompt: 'Туургаа бүрээе.',               do: _animTuurga,  ms: _ANIM_TUURGA_MS,  ok: 'Сайн байна!' },
+    { prompt: 'Бүслүүрээ уяя.',                do: _animBvsluur, ms: _ANIM_BVSLUUR_MS, ok: 'Шилдэг!' },
+];
+let _buildAdvance = null; // trigger-ээр advance хийх callback
+
+function _resetGerForBuild() {
     ger.setKhanaVisible(-1, false);
     ['door', 'bagana', 'toono', 'un'].forEach(id => ger.setPartVisibility(id, false));
     ger.getTuurga().setVisible(-1, false);
     ger.getBvsluur().setVisible(-1, false);
     ger.setPartVisibility('roof', false);
-    // ШИНЭ давхаргуудыг ч мөн нуух (өмнө нь reset хийгдэхгүй байсан)
     _innerFeltGroup.visible = false;
     _outerCoverGroup.visible = false;
     _innerFeltPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
     _outerCoverPanels.forEach(p => { p.visible = false; p.scale.y = 1; });
-    // Унь bars-ыг reset (scale 1 болгох)
-    const _uniGrpReset = ger.parts['un'];
-    if (_uniGrpReset) _uniGrpReset.children.forEach(b => b.scale.set(1, 1, 1));
-    // Анимацийн байрлалыг reset (хагас явсан анимацийг таслана)
+    const uniGrp = ger.parts['un'];
+    if (uniGrp) uniGrp.children.forEach(b => b.scale.set(1, 1, 1));
     [...ger.getTuurga().getPanels(),
      ...ger.getBvsluur().getBands(),
      ger.parts['bagana'], ger.parts['toono'], ger.parts['roof']
     ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
-    // Хана-г бүрэн эвхээстэй болгох
     ger.setKhanaFold(-1, 0.08);
+}
 
-    // ── MISSION reset + intro ───────────────────────────────
-    _resetMission();
-    _scheduleMsg(0, 'За хүү минь!\nГэрээ барицгаая.', 0, 2200);
+function _runBuildStep(idx) {
+    if (idx >= _BUILD_STEPS.length) {
+        // Бүгд хийгдэж дууслаа — checkbox sync
+        ger.setKhanaVisible(-1, true);
+        ger.getTuurga().setVisible(-1, true);
+        ger.getBvsluur().setVisible(-1, true);
+        ['door', 'bagana', 'toono', 'un', 'roof'].forEach(id => ger.setPartVisibility(id, true));
+        ['all', 'door', 'bagana', 'toono', 'un', 'roof',
+         'tuurga-1', 'tuurga-2', 'bvsluur-1', 'bvsluur-2', 'bvsluur-3',
+         'khana-0', 'khana-1', 'khana-2', 'khana-3', 'khana-4'
+        ].forEach(id => {
+            const cb = document.getElementById('check-' + id);
+            if (cb) cb.checked = true;
+        });
+        _showMission('Гэрээ амжилттай\nбариллаа!  ★', 4000);
+        return;
+    }
+    const s = _BUILD_STEPS[idx];
+    _showMission(s.prompt + '\n→ Trigger дар', 60000);
+    _buildAdvance = () => {
+        _buildAdvance = null;
+        try { s.do(); } catch (e) { console.error('build step:', e); }
+        setTimeout(() => {
+            _showMission(s.ok, 1300);
+            setTimeout(() => _runBuildStep(idx + 1), 1500);
+        }, s.ms);
+    };
+}
 
+window.buildGer = function () {
+    _resetGerForBuild();
+    _showMission('За хүү минь!\nГэрээ барицгаая.', 2200);
+    setTimeout(() => _runBuildStep(0), 2300);
+};
+
+// Ашиглагдахгүй болсон auto-build хуучин код доор
+function _legacyAutoBuildGer_unused() {
     let d = 1800; // intro мессежийг үзэхэд хангалттай хүлээнэ
 
     // 1. Хана
