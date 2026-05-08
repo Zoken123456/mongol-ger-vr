@@ -1123,6 +1123,199 @@ const _vrCtrl = [0, 1].map(i => {
     return entry;
 });
 
+// ══════════════════════════════════════════════════════════════════
+// MISSION / SCORE / EXPLODED VIEW — хүүхдэд зориулсан тоглоомын систем
+// ══════════════════════════════════════════════════════════════════
+function _roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+}
+function _makePanel(width, height, cvW = 768) {
+    const cv = document.createElement('canvas');
+    cv.width = cvW; cv.height = Math.round(cvW * height / width);
+    const ctx = cv.getContext('2d');
+    const tex = new THREE.CanvasTexture(cv);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    const mat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, side: THREE.DoubleSide, depthTest: false
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), mat);
+    mesh.renderOrder = 998;
+    return { mesh, ctx, cv, tex };
+}
+
+let _missionMsgUntil = 0;
+const _missionGroup = new THREE.Group();
+scene.add(_missionGroup);
+
+const _subtitlePanel = _makePanel(0.8, 0.22, 1024);
+_subtitlePanel.mesh.position.set(0, -0.35, -1.0);
+_subtitlePanel.mesh.visible = false;
+_missionGroup.add(_subtitlePanel.mesh);
+
+function _drawSubtitle(text) {
+    const { ctx, cv, tex } = _subtitlePanel;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(20, 18, 28, 0.88)';
+    _roundRect(ctx, 0, 0, cv.width, cv.height, 28); ctx.fill();
+    ctx.strokeStyle = '#E8B040'; ctx.lineWidth = 6;
+    _roundRect(ctx, 6, 6, cv.width - 12, cv.height - 12, 22); ctx.stroke();
+    ctx.fillStyle = '#FFF8E0';
+    ctx.font = 'bold 56px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lines = String(text).split('\n');
+    const lineH = 64;
+    const startY = cv.height / 2 - (lines.length - 1) * lineH / 2;
+    lines.forEach((line, i) => ctx.fillText(line, cv.width / 2, startY + i * lineH));
+    tex.needsUpdate = true;
+}
+function _showMission(text, duration = 2800) {
+    _drawSubtitle(text);
+    _subtitlePanel.mesh.visible = true;
+    _missionMsgUntil = performance.now() + duration;
+}
+function _scheduleMsg(at, text, _ignored = 0, dur = 2200) {
+    setTimeout(() => _showMission(text, dur), at);
+}
+function _resetMission() { /* no-op — оноо хэрэглэгдэхгүй */ }
+window._showMission = _showMission;
+window._resetMission = _resetMission;
+
+// Mission group-ийг камер дагуулна (PC болон VR-д хоёуланд нь)
+const _missionCamPos = new THREE.Vector3();
+const _missionCamQuat = new THREE.Quaternion();
+function _tickMission() {
+    if (_subtitlePanel.mesh.visible && performance.now() > _missionMsgUntil) {
+        _subtitlePanel.mesh.visible = false;
+    }
+    const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+    cam.getWorldPosition(_missionCamPos);
+    cam.getWorldQuaternion(_missionCamQuat);
+    _missionGroup.position.copy(_missionCamPos);
+    _missionGroup.quaternion.copy(_missionCamQuat);
+}
+
+// ── EXPLODED VIEW + INFO PANELS ──────────────────────────────
+const PART_INFO = {
+    'door':     { name: 'Хаалга',    desc: 'Уламжлалт ёсоор\nурд зүгт харуулдаг.' },
+    'bagana':   { name: 'Багана',    desc: 'Тооныг дэмждэг\nхоёр модон шон.' },
+    'toono':    { name: 'Тооно',     desc: 'Дээврийн дугуй цоорхой.\nГэрэл, утаа гадагшилна.' },
+    'un':       { name: 'Унь',       desc: 'Тооноос ханатай холбосон\nмодон шонгууд.' },
+    'roof':     { name: 'Дээвэр',    desc: 'Дээврийг бүрэх\nтом эсгий.' },
+    'tuurga-1': { name: 'Туурга',    desc: 'Ханыг бүрэх эсгий\n(өмнөд хагас).' },
+    'tuurga-2': { name: 'Туурга',    desc: 'Ханыг бүрэх эсгий\n(хойд хагас).' },
+    'bvsluur-1':{ name: 'Доод бүс',  desc: 'Туургыг бэхэлдэг\nдоод олсон бүслүүр.' },
+    'bvsluur-2':{ name: 'Дунд бүс',  desc: 'Туургыг бэхэлдэг\nдунд олсон бүслүүр.' },
+    'bvsluur-3':{ name: 'Дээд бүс',  desc: 'Туургыг бэхэлдэг\nдээд олсон бүслүүр.' },
+};
+
+function _getPartTarget(key) {
+    if (key.startsWith('tuurga-')) {
+        return ger.getTuurga().getPanels()[parseInt(key.split('-')[1]) - 1];
+    }
+    if (key.startsWith('bvsluur-')) {
+        return ger.getBvsluur().getBands()[parseInt(key.split('-')[1]) - 1];
+    }
+    return ger.parts[key];
+}
+
+const _infoPanels = {};
+function _initInfoPanels() {
+    Object.entries(PART_INFO).forEach(([key, info]) => {
+        const p = _makePanel(0.7, 0.32, 768);
+        const { ctx, cv, tex } = p;
+        ctx.fillStyle = 'rgba(28, 20, 12, 0.92)';
+        _roundRect(ctx, 0, 0, cv.width, cv.height, 22); ctx.fill();
+        ctx.strokeStyle = '#E8B040'; ctx.lineWidth = 6;
+        _roundRect(ctx, 6, 6, cv.width - 12, cv.height - 12, 18); ctx.stroke();
+        ctx.fillStyle = '#FFD060';
+        ctx.font = 'bold 64px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(info.name, cv.width / 2, 22);
+        ctx.fillStyle = '#FFFFE8';
+        ctx.font = '38px sans-serif';
+        info.desc.split('\n').forEach((line, i) => {
+            ctx.fillText(line, cv.width / 2, 110 + i * 50);
+        });
+        tex.needsUpdate = true;
+        p.mesh.visible = false;
+        scene.add(p.mesh);
+        _infoPanels[key] = p.mesh;
+    });
+}
+_initInfoPanels();
+
+let _explodedMode = false;
+function _vrToggleExplode() {
+    if (_explodedMode) _vrAssemble(); else _vrExplode();
+}
+function _vrExplode() {
+    _explodedMode = true;
+    const off = 1.6;
+    Object.entries(PART_INFO).forEach(([key, info]) => {
+        const target = _getPartTarget(key);
+        if (!target) return;
+        target.visible = true;
+        if (target === ger.parts['un']) {
+            target.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
+        }
+        const home = _getHome(target);
+        const dir = new THREE.Vector3(home.x, 0, home.z);
+        if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
+        dir.normalize();
+        // Багана төв дээр байдаг тул жижиг random offset өгье
+        if (key === 'bagana' || key === 'toono') {
+            dir.set(Math.cos(Math.random() * Math.PI * 2), 0, Math.sin(Math.random() * Math.PI * 2));
+        }
+        const target2 = home.clone().add(dir.clone().multiplyScalar(off));
+        // Унь хэсэг бол дээш нь өргөе
+        if (key === 'un' || key === 'roof' || key === 'toono') target2.y += 1.2;
+        animTo(target, target2, 0.85);
+        const panel = _infoPanels[key];
+        if (panel) {
+            panel.position.copy(target2);
+            panel.position.y += 0.8;
+            panel.visible = true;
+        }
+    });
+    _showMission('Хэсгүүдийг ажиглаарай!\nДахин дарж нэгтгэнэ.', 3500);
+}
+function _vrAssemble() {
+    _explodedMode = false;
+    Object.entries(PART_INFO).forEach(([key]) => {
+        const target = _getPartTarget(key);
+        if (!target) return;
+        animTo(target, _getHome(target), 0.85);
+        const panel = _infoPanels[key];
+        if (panel) panel.visible = false;
+    });
+    _showMission('Гэрээ нэгтгэлээ.', 1800);
+}
+
+// Info panel-ууд камер руу үргэлж харна (billboard)
+const _ipDir = new THREE.Vector3();
+function _tickInfoPanels() {
+    if (!_explodedMode) return;
+    const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+    const camPos = cam.getWorldPosition(new THREE.Vector3());
+    Object.values(_infoPanels).forEach(p => {
+        if (!p.visible) return;
+        _ipDir.copy(p.position).sub(camPos);
+        _ipDir.y = 0;
+        const yaw = Math.atan2(_ipDir.x, _ipDir.z);
+        p.rotation.set(0, yaw, 0);
+    });
+}
+
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
 const _VR_COLS = 4, _VR_ROWS = 10;
 const _VR_CV_W = 640, _VR_CV_H = 1024;
@@ -1230,11 +1423,11 @@ const _vrMenuButtons = [
     { label: 'AUTO ЦАГ',  color: '#1E1E4E', action: () => window.toggleAutoCycle && window.toggleAutoCycle() },
     { label: 'БОРОО',     color: '#1A3E5E', action: () => window.toggleRain && window.toggleRain() },
     { label: 'ЦАС',       color: '#3A5A7A', action: () => window.toggleSnow && window.toggleSnow() },
-    // 10) Цаг агаар (2) + дуу
+    // 10) Цаг агаар (2) + дуу + ЗАДЛАХ (exploded view)
     { label: 'МАНАН', color: '#3A3A4A', action: () => window.toggleFog && window.toggleFog() },
     { label: 'ӨВӨЛ',  color: '#2E5E8A', action: () => window.toggleWinter && window.toggleWinter() },
     { label: 'ДУУ',   color: '#4A2A5E', action: () => window.toggleSound && window.toggleSound() },
-    { label: '',      color: '#2A2A2A', action: () => {} },
+    { label: 'ЗАДЛАХ', color: '#A04020', action: () => _vrToggleExplode() },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -4652,6 +4845,8 @@ renderer.setAnimationLoop((timestamp) => {
     _tickVRMenuHeadLock();
     _tickVRControllers();
     _tickVRLocomotion(delta);
+    _tickMission();
+    _tickInfoPanels();
     if (window._tickRiding) window._tickRiding(delta);
     if (window._tickFlags)  window._tickFlags(delta);
 
@@ -4921,70 +5116,85 @@ window.buildGer = function () {
     // Хана-г бүрэн эвхээстэй болгох
     ger.setKhanaFold(-1, 0.08);
 
-    let d = 200; // ms
+    // ── MISSION reset + intro ───────────────────────────────
+    _resetMission();
+    _scheduleMsg(0, 'За хүү минь!\nГэрээ барицгаая.', 0, 2200);
 
-    // 1. Хана 1-5 — эвхээстэй байгаад нэг нэгээр зөөлөн дэлгэгдэнэ (ease-out cubic)
-    const KHANA_DUR = 1100;          // нэг ханын дэлгэгдэх хугацаа (мс)
-    const KHANA_GAP = 480;           // дараагийн хана эхлэх зай (мс)
+    let d = 1800; // intro мессежийг үзэхэд хангалттай хүлээнэ
+
+    // 1. Хана
+    _scheduleMsg(d, 'Эхлээд ханыг дэлгэе.', 0, 2000);
+    d += 800;
+    const KHANA_DUR = 1100;
+    const KHANA_GAP = 480;
     for (let i = 0; i < 5; i++) {
         const idx = i;
         setTimeout(() => {
-            // Эхлээд хана харагдана, бүрэн эвхээстэй
             ger.setKhanaVisible(idx, true);
             ger.setKhanaFold(idx, 0.08);
             const start = performance.now();
             const step = () => {
                 const t = Math.min(1, (performance.now() - start) / KHANA_DUR);
-                // EaseOutCubic — байгалийн эвхээс
                 const e = 1 - Math.pow(1 - t, 3);
-                // Бага зэрэг overshoot — дэлгэснийхээ дараа арай эргэн нэгдэх
                 const overshoot = Math.sin(t * Math.PI) * 0.04;
                 const r = 0.08 + (1.0 - 0.08) * e + overshoot;
                 ger.setKhanaFold(idx, Math.min(1.04, r));
                 if (t < 1) requestAnimationFrame(step);
-                else ger.setKhanaFold(idx, 1.0);  // эцсийн утга
+                else ger.setKhanaFold(idx, 1.0);
             };
             step();
         }, d + idx * KHANA_GAP);
     }
     d += 5 * KHANA_GAP + KHANA_DUR + 200;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1600);
+    d += 1500;
 
     // 2. Хаалга
+    _scheduleMsg(d, 'Урд талд хаалгаа\nтавья.', 0, 1800);
+    d += 800;
     setTimeout(() => ger.setPartVisibility('door', true), d);
     d += 350;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 3. Тооно — дээрээс доош (унь барихаас өмнө байна)
+    // 3. Тооно
+    _scheduleMsg(d, 'Тооноо дээрээс\nбуулгая.', 0, 1800);
+    d += 800;
     setTimeout(() => {
         const o = ger.parts['toono'], h = _getHome(o);
         animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['toono']));
     }, d);
-    d += 650;
+    d += 700;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 4. Багана — доороос дээш (тооныг дэмжинэ)
+    // 4. Багана
+    _scheduleMsg(d, 'Тооныг дэмжих\nбагануудаа босгоё.', 0, 1800);
+    d += 800;
     setTimeout(() => {
         const o = ger.parts['bagana'], h = _getHome(o);
         animTo(o, h, 0.75, h.clone().add(ENTRY_OFFSETS['bagana']));
     }, d);
-    d += 600;
+    d += 700;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 5. Унь — нэг нэгээр тойрон гарч ирнэ
+    // 5. Унь
+    _scheduleMsg(d, 'Униа тойруулан\nхатгана.', 0, 1800);
+    d += 800;
     setTimeout(() => {
         ger.setPartVisibility('un', true);
         const uniGrp = ger.parts['un'];
         if (uniGrp && uniGrp.children) {
             const bars = uniGrp.children;
-            // Эхлээд бүгдийг нь нуух
             bars.forEach(b => { b.visible = false; b.scale.set(0.01, 0.01, 0.01); });
-            // 25мс тутам нэг нэгээр тойрон харагдах
             bars.forEach((b, i) => {
                 setTimeout(() => {
                     b.visible = true;
-                    // Жижигээс рүү нь хэвийн хэмжээтэй болж томор
                     const startT = performance.now();
                     const dur = 280;
                     const step = () => {
                         const t = Math.min(1, (performance.now() - startT) / dur);
-                        // EaseOutBack-шиг
                         const e = 1 - Math.pow(1 - t, 3);
                         const back = 1 + (Math.sin(t * Math.PI) * 0.15);
                         const sc = e * back;
@@ -4997,31 +5207,44 @@ window.buildGer = function () {
             });
         }
     }, d);
-    d += 18 * 52 + 400; // 52 уни × 18мс + дуусгахад 0.4сек
+    d += 18 * 52 + 400;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 6. Дотор бүрээс — хасагдсан (давхар үе үүсгэж байсан)
-
-    // 7. Дээвэр — дээрээс доош (эсгий дээвэр)
+    // 6. Дээвэр
+    _scheduleMsg(d, 'Эсгий дээврээ\nтавья.', 0, 1800);
+    d += 800;
     setTimeout(() => {
         const o = ger.parts['roof']; ger.setPartVisibility('roof', true);
         animTo(o, _getHome(o), 0.9, _getHome(o).clone().add(new THREE.Vector3(0, 9, 0)));
     }, d);
-    d += 850;
+    d += 900;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 8. Туурга 1 & 2 (урд, ард)
+    // 7. Туурга
+    _scheduleMsg(d, 'Туургаа\nбүрээе.', 0, 1800);
+    d += 800;
     setTimeout(() => { const p = ger.getTuurga().getPanels()[0]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-1'])); }, d);
     d += 320;
     setTimeout(() => { const p = ger.getTuurga().getPanels()[1]; animTo(p, _getHome(p), 0.7, _getHome(p).clone().add(ENTRY_OFFSETS['tuurga-2'])); }, d);
     d += 700;
+    _scheduleMsg(d, 'Сайн байна!', 0, 1400);
+    d += 1200;
 
-    // 9. Гадна цагаан бүрээс — хасагдсан (давхар үе үүсгэж байсан)
-
-    // 10. Бүслүүр 1-3 — гадна бүрээсийг бэхэлнэ (хамгийн сүүлд)
+    // 8. Бүслүүр
+    _scheduleMsg(d, 'Бүслүүрээ\nуяя.', 0, 1800);
+    d += 800;
     for (let i = 0; i < 3; i++) {
         const idx = i;
         setTimeout(() => { const b = ger.getBvsluur().getBands()[idx]; animTo(b, _getHome(b), 0.5, _getHome(b).clone().add(ENTRY_OFFSETS['bvsluur-1'])); }, d + idx * 220);
     }
     d += 3 * 220 + 400;
+    _scheduleMsg(d, 'Шилдэг!', 0, 2000);
+    d += 1500;
+
+    // Эцсийн магтаалт
+    _scheduleMsg(d, 'Гэрээ амжилттай\nбариллаа! ★', 0, 3000);
 
     // 9. Баталгаажуулалт — анимац дуусмагц БҮХ хэсгийг харуулна, checkbox-уудыг зөв болгоно
     setTimeout(() => {
