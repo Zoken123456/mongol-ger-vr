@@ -629,7 +629,7 @@
             .info-box h2 { font-size: 20px; }
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-tS73zQYy.js"></script>
+  <script type="module" crossorigin src="./assets/index-CZVkeeR3.js"></script>
 </head>
 
 <body>
@@ -784,6 +784,24 @@
     <button data-tip="Гэрийг хэсгүүдэд салгаж газар дээр харуулна" onclick="toggleExplode()">⚙ Гэр задлах</button>
     <button data-tip="Гэрийг автоматаар эргүүлэх" onclick="toggleRotation()">↻ Эргүүлэх</button>
     <button data-tip="Камерыг анхны байрлалд нь буцаах" onclick="resetView()">⌂ Буцах</button>
+
+    <!-- ───── ХАРАХ ЧИГЛЭЛ ───── -->
+    <div class="mc-section" style="margin-top:8px;">
+        🎥 ХАРАХ ЧИГЛЭЛ
+        <span class="mc-sub">Камерын өнцгийг солих</span>
+    </div>
+    <div class="grid-2">
+        <button data-tip="Гэр рүү харах" onclick="setView('ger')">⛺ Гэр</button>
+        <button data-tip="Дээрээс харах" onclick="setView('top')">↓ Дээрээс</button>
+    </div>
+    <div class="grid-2">
+        <button data-tip="Хаалган тал" onclick="setView('door')">🚪 Хаалга</button>
+        <button data-tip="Уулс руу харах" onclick="setView('mountain')">⛰ Уул</button>
+    </div>
+    <div class="grid-2">
+        <button data-tip="Нуур руу харах" onclick="setView('lake')">💧 Нуур</button>
+        <button data-tip="Хүрхрээ рүү харах" onclick="setView('waterfall')">💦 Хүрхрээ</button>
+    </div>
 
     <div class="grid-2">
         <button data-tip="Хаалгыг нээх" onclick="openDoor()">🚪 Нээх</button>
