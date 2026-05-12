@@ -5355,7 +5355,7 @@ function _startInteractiveBuild() {
     setTimeout(_runInteractiveStep, 2700);
 }
 
-// PC mouse drag handlers (зөвхөн VR биш үед, _interactiveBuild = true үед)
+// PC click-to-place: одоогийн алхамын хэсэг рүү дархад home байр уруу нисэн очно
 renderer.domElement.addEventListener('pointerdown', (e) => {
     if (!_interactiveBuild || renderer.xr.isPresenting) return;
     const step = _DRAG_STEPS[_interactiveStep];
@@ -5367,43 +5367,12 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     _ray.setFromCamera(_mouse, camera);
     const hits = _ray.intersectObject(target, true);
     if (!hits.length) return;
-    _dragTarget = target;
-    controls.enabled = false;
-    const groundHit = new THREE.Vector3();
-    if (_ray.ray.intersectPlane(_DRAG_GROUND, groundHit)) {
-        _dragOffset.set(target.position.x - groundHit.x, 0, target.position.z - groundHit.z);
-    } else _dragOffset.set(0, 0, 0);
-});
-renderer.domElement.addEventListener('pointermove', (e) => {
-    if (!_dragTarget) return;
-    _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
-    _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-    _ray.setFromCamera(_mouse, camera);
-    const hit = new THREE.Vector3();
-    if (!_ray.ray.intersectPlane(_DRAG_GROUND, hit)) return;
-    _dragTarget.position.x = hit.x + _dragOffset.x;
-    _dragTarget.position.z = hit.z + _dragOffset.z;
-    const slot = _getHome(_dragTarget);
-    const d = Math.hypot(_dragTarget.position.x - slot.x, _dragTarget.position.z - slot.z);
-    _setDragOutline(_dragTarget, d < _DRAG_SNAP ? 0x00ff44 : 0xff3322);
-});
-renderer.domElement.addEventListener('pointerup', () => {
-    if (!_dragTarget) return;
-    const slot = _getHome(_dragTarget);
-    const d = Math.hypot(_dragTarget.position.x - slot.x, _dragTarget.position.z - slot.z);
-    _setDragOutline(_dragTarget, null);
-    if (d < _DRAG_SNAP) {
-        animTo(_dragTarget, slot.clone(), 0.4);
-        _showMission('Сайн байна!', 1200);
-        _interactiveStep++;
-        setTimeout(_runInteractiveStep, 1500);
-    } else {
-        const step = _DRAG_STEPS[_interactiveStep];
-        const sc = _DRAG_SCATTER[step.part];
-        if (sc) _dragTarget.position.set(sc[0], 0.5, sc[1]);
-    }
-    _dragTarget = null;
-    controls.enabled = true;
+    // Шууд home рүү нисэн очно
+    const slot = _getHome(target);
+    animTo(target, slot.clone(), 0.65, target.position.clone());
+    _showMission('Сайн байна!', 1200);
+    _interactiveStep++;
+    setTimeout(_runInteractiveStep, 1400);
 });
 
 window.buildGer = function () {
