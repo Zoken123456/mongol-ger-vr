@@ -4989,6 +4989,7 @@ renderer.setAnimationLoop((timestamp) => {
     if (window._tickStreamMist) window._tickStreamMist(delta);
     if (window._tickLake) window._tickLake(delta);
     if (window._tickWaterfall) window._tickWaterfall(delta);
+    _tickViewAnim(delta);
     _tickSmoke(delta);
     if (isRotating) ger.getObject3D().rotation.y += delta * 0.3;
     _pollVRMenuToggle();
@@ -5059,12 +5060,40 @@ window.toggleRotation = function() {
     if (btn) btn.textContent = isRotating ? '⏸ Зогсоох' : '▶ Эргүүлэх';
 };
 
-window.resetView = function() {
-    camera.position.set(14, 10, 20);
-    controls.target.set(0, 2.5, 0);
-    controls.update();
+// ── Камерын чиглэлийн preset-ууд ─────────────────────────────
+const _VIEW_PRESETS = {
+    'ger':       { pos: [14, 10, 20],   target: [0, 2.5, 0] },
+    'door':      { pos: [12, 2.2, 0],   target: [4, 1.8, 0] },
+    'top':       { pos: [0, 35, 0.1],   target: [0, 0, 0] },
+    'lake':      { pos: [40, 18, -25],  target: [-2, 0, -57] },
+    'waterfall': { pos: [22, 10, -55],  target: [18, 6, -84] },
+    'mountain':  { pos: [0, 14, 25],    target: [0, 18, -70] },
+};
+let _viewAnim = null;
+window.setView = function(name) {
+    const preset = _VIEW_PRESETS[name];
+    if (!preset) return;
+    _viewAnim = {
+        t: 0, dur: 0.9,
+        fromPos: camera.position.clone(),
+        toPos: new THREE.Vector3(...preset.pos),
+        fromTarget: controls.target.clone(),
+        toTarget: new THREE.Vector3(...preset.target),
+    };
     isRotating = false;
 };
+function _tickViewAnim(dt) {
+    if (!_viewAnim) return;
+    _viewAnim.t += dt / _viewAnim.dur;
+    const p = Math.min(1, _viewAnim.t);
+    const e = 1 - Math.pow(1 - p, 3);
+    camera.position.lerpVectors(_viewAnim.fromPos, _viewAnim.toPos, e);
+    controls.target.lerpVectors(_viewAnim.fromTarget, _viewAnim.toTarget, e);
+    controls.update();
+    if (p >= 1) _viewAnim = null;
+}
+
+window.resetView = function() { window.setView('ger'); };
 
 // Гадаа явах (PointerLock, гэрийн урдаас эхэлнэ)
 window.walkOutside = function() {
