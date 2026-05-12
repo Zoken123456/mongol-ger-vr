@@ -5353,16 +5353,32 @@ const _BUILD_STEPS = [
 let _buildAdvance = null; // trigger-ээр advance хийх callback
 
 // ЗАДЛАХ үед газар дээр эрэмбэлсэн 3×3 grid (гэрийн +X талд)
+// Бүлэглэсэн: мөр 1 (z=-3) модон хэсгүүд, мөр 2 (z=0) эсгий, мөр 3 (z=3) бүс
 const _SCATTER = {
-    'door':      [10, -2],
-    'toono':     [10,  0],
-    'bagana':    [10,  2],
-    'roof':      [12, -2],
-    'tuurga-1':  [12,  0],
-    'tuurga-2':  [12,  2],
-    'bvsluur-1': [14, -2],
-    'bvsluur-2': [14,  0],
-    'bvsluur-3': [14,  2],
+    // Row 1 — модон хэсгүүд
+    'door':      [10, -3],
+    'bagana':    [13, -3],
+    'toono':     [16, -3],
+    // Row 2 — эсгий
+    'roof':      [10,  0],
+    'tuurga-1':  [13,  0],
+    'tuurga-2':  [16,  0],
+    // Row 3 — бүслүүр
+    'bvsluur-1': [10,  3],
+    'bvsluur-2': [13,  3],
+    'bvsluur-3': [16,  3],
+};
+// Том хэсгүүд scatter үед жижигрүүлж "багц" мэт харуулна
+const _SCATTER_SCALE = {
+    'door':      0.7,
+    'bagana':    0.6,
+    'toono':     0.55,
+    'roof':      0.35,
+    'tuurga-1':  0.35,
+    'tuurga-2':  0.35,
+    'bvsluur-1': 0.55,
+    'bvsluur-2': 0.55,
+    'bvsluur-3': 0.55,
 };
 
 function _resetGerForBuild() {
@@ -5380,7 +5396,11 @@ function _resetGerForBuild() {
     [...ger.getTuurga().getPanels(),
      ...ger.getBvsluur().getBands(),
      ger.parts['bagana'], ger.parts['toono'], ger.parts['roof'], ger.parts['door']
-    ].forEach(o => { _anims.delete(o.uuid); o.position.copy(_getHome(o)); });
+    ].forEach(o => {
+        _anims.delete(o.uuid);
+        o.position.copy(_getHome(o));
+        o.scale.set(1, 1, 1);  // scatter-аас үлдсэн жижиг scale-ийг сэргээх
+    });
     ger.setKhanaFold(-1, 0.08);
 }
 
@@ -5416,16 +5436,31 @@ function _runBuildStep(idx) {
 // ── INTERACTIVE DRAG-BUILD (PC) ──────────────────────────────
 // Зарим хэсгийг scatter байрлалд харуулж, mouse-аар чирэн хэрэглэгч өөрөө
 // home байр уруу нь тавьдаг — snap distance < threshold үед автоматаар сууна.
+// Бүлэглэсэн эмх цэгцтэй scatter (гэрийн +X талд, 3×3)
 const _DRAG_SCATTER = {
-    'door':      [10, -2],
-    'toono':     [10,  0],
-    'bagana':    [10,  2],
-    'roof':      [12, -2],
-    'tuurga-1':  [12,  0],
-    'tuurga-2':  [12,  2],
-    'bvsluur-1': [14, -2],
-    'bvsluur-2': [14,  0],
-    'bvsluur-3': [14,  2],
+    // Row 1 — модон хэсгүүд
+    'door':      [10, -3],
+    'bagana':    [13, -3],
+    'toono':     [16, -3],
+    // Row 2 — эсгий
+    'roof':      [10,  0],
+    'tuurga-1':  [13,  0],
+    'tuurga-2':  [16,  0],
+    // Row 3 — бүслүүр
+    'bvsluur-1': [10,  3],
+    'bvsluur-2': [13,  3],
+    'bvsluur-3': [16,  3],
+};
+const _DRAG_SCALE = {
+    'door':      0.7,
+    'bagana':    0.6,
+    'toono':     0.55,
+    'roof':      0.35,
+    'tuurga-1':  0.35,
+    'tuurga-2':  0.35,
+    'bvsluur-1': 0.55,
+    'bvsluur-2': 0.55,
+    'bvsluur-3': 0.55,
 };
 const _DRAG_STEPS = [
     { id: 'khana',    label: 'Хана дэлгэе',         mode: 'auto', anim: _animKhana, ms: _ANIM_KHANA_MS },
@@ -5460,6 +5495,8 @@ function _scatterForDrag() {
         if (!t) return;
         _anims.delete(t.uuid);
         t.position.set(x, 0.5, z);
+        const sc = _DRAG_SCALE[key] ?? 1;
+        t.scale.set(sc, sc, sc);
         t.visible = true;
     });
 }
@@ -5503,6 +5540,21 @@ function _placeCurrentPart() {
     if (!target) return;
     const slot = _getHome(target);
     animTo(target, slot.clone(), 0.65, target.position.clone());
+    // Хэмжээг scatter scale-аас 1.0 рүү аажмаар буцаана
+    const startScale = target.scale.x;
+    if (Math.abs(startScale - 1) > 0.01) {
+        const t0 = performance.now();
+        const dur = 650;
+        const stepFn = () => {
+            const t = Math.min(1, (performance.now() - t0) / dur);
+            const e = 1 - Math.pow(1 - t, 3);
+            const s = startScale + (1 - startScale) * e;
+            target.scale.set(s, s, s);
+            if (t < 1) requestAnimationFrame(stepFn);
+            else target.scale.set(1, 1, 1);
+        };
+        stepFn();
+    }
     _showMission('Сайн байна!', 1200);
     _interactiveStep++;
     setTimeout(_runInteractiveStep, 1400);
