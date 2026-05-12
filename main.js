@@ -5018,6 +5018,7 @@ function _getToggleAncestor(obj) {
 
 renderer.domElement.addEventListener('mousemove', e => {
     if (isWalking) return;
+    if (_interactiveBuild) return;  // drag-build үед hover highlight хийхгүй
     _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
     _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     _ray.setFromCamera(_mouse, camera);
@@ -5051,6 +5052,7 @@ renderer.domElement.addEventListener('mousemove', e => {
 
 renderer.domElement.addEventListener('click', e => {
     if (isWalking) return;
+    if (_interactiveBuild) return;  // drag-build үед toggle хийхгүй
     // 0) Гар аргаар барих хүлээж байвал → дараагийн алхам
     if (_buildAdvance) {
         const fn = _buildAdvance;
@@ -5272,10 +5274,148 @@ function _runBuildStep(idx) {
     };
 }
 
+// ── INTERACTIVE DRAG-BUILD (PC) ──────────────────────────────
+// Зарим хэсгийг scatter байрлалд харуулж, mouse-аар чирэн хэрэглэгч өөрөө
+// home байр уруу нь тавьдаг — snap distance < threshold үед автоматаар сууна.
+const _DRAG_SCATTER = {
+    'door':      [10, -2],
+    'toono':     [10,  0],
+    'bagana':    [10,  2],
+    'roof':      [12, -2],
+    'tuurga-1':  [12,  0],
+    'tuurga-2':  [12,  2],
+    'bvsluur-1': [14, -2],
+    'bvsluur-2': [14,  0],
+    'bvsluur-3': [14,  2],
+};
+const _DRAG_STEPS = [
+    { id: 'khana',    label: 'Хана дэлгэе',         mode: 'auto', anim: _animKhana, ms: _ANIM_KHANA_MS },
+    { id: 'door',     label: 'Хаалга чирээд тавь',   mode: 'drag', part: 'door' },
+    { id: 'toono',    label: 'Тооно чирээд тавь',    mode: 'drag', part: 'toono' },
+    { id: 'bagana',   label: 'Багана чирээд тавь',   mode: 'drag', part: 'bagana' },
+    { id: 'un',       label: 'Унь хатгана',         mode: 'auto', anim: _animUni, ms: _ANIM_UNI_MS },
+    { id: 'roof',     label: 'Дээвэр чирээд тавь',   mode: 'drag', part: 'roof' },
+    { id: 'tuurga-1', label: 'Урд туургыг чирэх',    mode: 'drag', part: 'tuurga-1' },
+    { id: 'tuurga-2', label: 'Хойд туургыг чирэх',   mode: 'drag', part: 'tuurga-2' },
+    { id: 'bvsluur-1', label: 'Доод бүс чирэх',     mode: 'drag', part: 'bvsluur-1' },
+    { id: 'bvsluur-2', label: 'Дунд бүс чирэх',     mode: 'drag', part: 'bvsluur-2' },
+    { id: 'bvsluur-3', label: 'Дээд бүс чирэх',     mode: 'drag', part: 'bvsluur-3' },
+];
+const _DRAG_SNAP = 1.6;
+const _DRAG_GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5); // y=0.5 хавтгай
+let _interactiveBuild = false;
+let _interactiveStep  = 0;
+let _dragTarget       = null;
+const _dragOffset     = new THREE.Vector3();
+
+function _setDragOutline(obj, color) {
+    obj.traverse(m => {
+        if (!m.isMesh || !m.material || m.material.emissive === undefined) return;
+        if (color === null) { m.material.emissive.setHex(0); m.material.emissiveIntensity = 0; }
+        else { m.material.emissive.setHex(color); m.material.emissiveIntensity = 0.55; }
+    });
+}
+function _scatterForDrag() {
+    Object.entries(_DRAG_SCATTER).forEach(([key, [x, z]]) => {
+        const t = _getPartTarget(key);
+        if (!t) return;
+        _anims.delete(t.uuid);
+        t.position.set(x, 0.5, z);
+        t.visible = true;
+    });
+}
+function _runInteractiveStep() {
+    if (_interactiveStep >= _DRAG_STEPS.length) {
+        _interactiveBuild = false;
+        _showMission('Гэрээ амжилттай\nбариллаа!  ★', 4000);
+        return;
+    }
+    const step = _DRAG_STEPS[_interactiveStep];
+    if (step.mode === 'auto') {
+        // Хана/Унь — автоматаар анимацлаж дараагийнхад орно (click хэрэггүй)
+        _showMission(step.label, 1800);
+        setTimeout(() => {
+            try { step.anim(); } catch (e) { console.error(e); }
+            setTimeout(() => {
+                _showMission('Сайн байна!', 1200);
+                _interactiveStep++;
+                setTimeout(_runInteractiveStep, 1300);
+            }, step.ms);
+        }, 1500);
+    } else {
+        _showMission(step.label, 60000);
+    }
+}
+function _startInteractiveBuild() {
+    _interactiveBuild = true;
+    _interactiveStep = 0;
+    _resetGerForBuild();
+    _scatterForDrag();
+    _showMission('Хэсгүүдийг ээлжээр\nгазраас чирэн тавь!', 3000);
+    setTimeout(_runInteractiveStep, 2700);
+}
+
+// PC mouse drag handlers (зөвхөн VR биш үед, _interactiveBuild = true үед)
+renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (!_interactiveBuild || renderer.xr.isPresenting) return;
+    const step = _DRAG_STEPS[_interactiveStep];
+    if (!step || step.mode !== 'drag') return;
+    const target = _getPartTarget(step.part);
+    if (!target) return;
+    _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
+    _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    _ray.setFromCamera(_mouse, camera);
+    const hits = _ray.intersectObject(target, true);
+    if (!hits.length) return;
+    _dragTarget = target;
+    controls.enabled = false;
+    const groundHit = new THREE.Vector3();
+    if (_ray.ray.intersectPlane(_DRAG_GROUND, groundHit)) {
+        _dragOffset.set(target.position.x - groundHit.x, 0, target.position.z - groundHit.z);
+    } else _dragOffset.set(0, 0, 0);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!_dragTarget) return;
+    _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
+    _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    _ray.setFromCamera(_mouse, camera);
+    const hit = new THREE.Vector3();
+    if (!_ray.ray.intersectPlane(_DRAG_GROUND, hit)) return;
+    _dragTarget.position.x = hit.x + _dragOffset.x;
+    _dragTarget.position.z = hit.z + _dragOffset.z;
+    const slot = _getHome(_dragTarget);
+    const d = Math.hypot(_dragTarget.position.x - slot.x, _dragTarget.position.z - slot.z);
+    _setDragOutline(_dragTarget, d < _DRAG_SNAP ? 0x00ff44 : 0xff3322);
+});
+renderer.domElement.addEventListener('pointerup', () => {
+    if (!_dragTarget) return;
+    const slot = _getHome(_dragTarget);
+    const d = Math.hypot(_dragTarget.position.x - slot.x, _dragTarget.position.z - slot.z);
+    _setDragOutline(_dragTarget, null);
+    if (d < _DRAG_SNAP) {
+        animTo(_dragTarget, slot.clone(), 0.4);
+        _showMission('Сайн байна!', 1200);
+        _interactiveStep++;
+        setTimeout(_runInteractiveStep, 1500);
+    } else {
+        const step = _DRAG_STEPS[_interactiveStep];
+        const sc = _DRAG_SCATTER[step.part];
+        if (sc) _dragTarget.position.set(sc[0], 0.5, sc[1]);
+    }
+    _dragTarget = null;
+    controls.enabled = true;
+});
+
 window.buildGer = function () {
     _resetGerForBuild();
-    _showMission('За хүү минь!\nГэрээ барицгаая.', 2200);
-    setTimeout(() => _runBuildStep(0), 2300);
+    if (renderer.xr.isPresenting) {
+        // VR — алхам бүрд trigger хүлээдэг хуучин урсгал
+        _showMission('За хүү минь!\nГэрээ барицгаая.', 2200);
+        setTimeout(() => _runBuildStep(0), 2300);
+    } else {
+        // PC — drag-and-drop interactive
+        _startInteractiveBuild();
+    }
 };
 
 // Ашиглагдахгүй болсон auto-build хуучин код доор
