@@ -1669,14 +1669,8 @@ _vrCtrl.forEach((entry, idx) => {
             _vrHoverIdx = -1;
             return;
         }
-        // 2) Гэрийн хэсэг рүү заагдсан бол:
-        //    - Задлагдсан үед scatter дээрх хэсэгт дарвал тэр нь home рүү буцна
-        //    - Бусад үед toggle
+        // 2) Гэрийн хэсэг рүү заагдсан бол → toggle
         if (_vrHoveredPart) {
-            if (_explodedMode && _vrPartToHome(_vrHoveredPart)) {
-                _tpRing.visible = false;
-                return;
-            }
             _vrTogglePartByObject(_vrHoveredPart);
             _tpRing.visible = false;
             return;
@@ -5072,9 +5066,6 @@ renderer.domElement.addEventListener('click', e => {
     if (!hits.length) return;
     const target = _getToggleAncestor(hits[0].object);
     if (!target) return;
-
-    // Гэр задласан үед scatter хэсэг дээр дарвал → home руу буцна
-    if (_explodedMode && _vrPartToHome(target)) return;
 
     const home   = _getHome(target);
     const offset = ENTRY_OFFSETS[target.name] ?? new THREE.Vector3(0, 8, 0);
