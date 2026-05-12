@@ -5356,24 +5356,37 @@ function _startInteractiveBuild() {
 }
 
 // PC click-to-place: одоогийн алхамын хэсэг рүү дархад home байр уруу нисэн очно
+function _placeCurrentPart() {
+    if (!_interactiveBuild) return;
+    const step = _DRAG_STEPS[_interactiveStep];
+    if (!step || step.mode !== 'drag') return;
+    const target = _getPartTarget(step.part);
+    if (!target) return;
+    const slot = _getHome(target);
+    animTo(target, slot.clone(), 0.65, target.position.clone());
+    _showMission('Сайн байна!', 1200);
+    _interactiveStep++;
+    setTimeout(_runInteractiveStep, 1400);
+}
 renderer.domElement.addEventListener('pointerdown', (e) => {
     if (!_interactiveBuild || renderer.xr.isPresenting) return;
     const step = _DRAG_STEPS[_interactiveStep];
     if (!step || step.mode !== 'drag') return;
     const target = _getPartTarget(step.part);
     if (!target) return;
-    _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
-    _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    // Walk mode үед хулганы cursor lock хийгдсэн байж болох тул экраны төвөөс raycast
+    if (isWalking) {
+        _mouse.set(0, 0);
+    } else {
+        _mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
+        _mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    }
     _ray.setFromCamera(_mouse, camera);
     const hits = _ray.intersectObject(target, true);
     if (!hits.length) return;
-    // Шууд home рүү нисэн очно
-    const slot = _getHome(target);
-    animTo(target, slot.clone(), 0.65, target.position.clone());
-    _showMission('Сайн байна!', 1200);
-    _interactiveStep++;
-    setTimeout(_runInteractiveStep, 1400);
+    _placeCurrentPart();
 });
+window.placeNextPart = _placeCurrentPart; // дэлгэцэн дээрх "Үргэлжлүүлэх" товчоос дуудаж болно
 
 window.buildGer = function () {
     _resetGerForBuild();
