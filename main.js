@@ -2813,29 +2813,163 @@ function createGoat(x, z, rotY = 0, color = 0xD8C8A8) {
 })();
 
 // ══════════════════════════════════════════════════════════════════
+// ХҮРХРЭЭ — уулнаас доош нуурт цутгана
+// ══════════════════════════════════════════════════════════════════
+(function buildWaterfall() {
+    const fx = 18, fz = -84;     // хүрхрээний доод цэгийн х/z
+    const fh = 12;                // өндөр
+    const fw = 4;                 // өргөн
+
+    const cliffMat = new THREE.MeshStandardMaterial({
+        color: 0x4E4438, roughness: 0.94, flatShading: true
+    });
+    // Ар хана
+    const cliffBack = new THREE.Mesh(new THREE.BoxGeometry(fw + 4, fh + 1.5, 2.4), cliffMat);
+    cliffBack.position.set(fx, fh / 2, fz - 2);
+    cliffBack.castShadow = true; cliffBack.receiveShadow = true;
+    scene.add(cliffBack);
+    // Хажуугийн хад
+    [-(fw / 2 + 1.5), (fw / 2 + 1.5)].forEach(dx => {
+        const side = new THREE.Mesh(new THREE.BoxGeometry(2, fh + 0.5, 2.8), cliffMat);
+        side.position.set(fx + dx, fh / 2, fz - 0.7);
+        side.castShadow = true; scene.add(side);
+    });
+    // Дээд тал — горхины уруу
+    const ledge = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.6, 0.4, 0.7), cliffMat);
+    ledge.position.set(fx, fh + 0.2, fz - 0.2);
+    scene.add(ledge);
+
+    // Хүрхрээний усны текстур (босоо урсгал)
+    const wTex = _mkTex((ctx, s) => {
+        ctx.fillStyle = '#1A6090'; ctx.fillRect(0, 0, s, s);
+        for (let i = 0; i < 14; i++) {
+            ctx.fillStyle = 'rgba(180,225,255,0.7)';
+            const x = Math.floor(Math.random() * s);
+            const len = 3 + Math.floor(Math.random() * 5);
+            ctx.fillRect(x, Math.floor(Math.random() * (s - len)), 1, len);
+        }
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = 'rgba(230,245,255,0.95)';
+            ctx.fillRect(Math.floor(Math.random() * s), Math.floor(Math.random() * s), 1, 1);
+        }
+    }, 32);
+    wTex.wrapS = THREE.RepeatWrapping;
+    wTex.wrapT = THREE.RepeatWrapping;
+    wTex.repeat.set(1.4, 2.5);
+    const fallMat = new THREE.MeshStandardMaterial({
+        color: 0xFFFFFF, map: wTex,
+        transparent: true, opacity: 0.88,
+        roughness: 0.05, metalness: 0.35,
+        depthWrite: false, side: THREE.DoubleSide,
+        emissive: 0x0A2030, emissiveIntensity: 0.35,
+    });
+    const fall = new THREE.Mesh(new THREE.PlaneGeometry(fw, fh + 0.6), fallMat);
+    fall.position.set(fx, fh / 2 + 0.3, fz + 0.15);
+    scene.add(fall);
+    const fall2 = new THREE.Mesh(new THREE.PlaneGeometry(fw - 0.5, fh + 0.4), fallMat.clone());
+    fall2.material.opacity = 0.65;
+    fall2.position.set(fx, fh / 2 + 0.2, fz - 0.05);
+    scene.add(fall2);
+
+    // Унаж буй цэгийн splash pool
+    const poolMat = new THREE.MeshStandardMaterial({
+        color: 0x9CD0E8, transparent: true, opacity: 0.78,
+        roughness: 0.1, metalness: 0.35, depthWrite: false,
+    });
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(fw * 0.95, 28), poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(fx, 0.11, fz + 0.6);
+    scene.add(pool);
+
+    // Цацрах хөөсний particles
+    const sprayN = 140;
+    const sprayGeo = new THREE.BufferGeometry();
+    const sprayPos = new Float32Array(sprayN * 3);
+    const sprayVel = new Float32Array(sprayN * 3);
+    for (let i = 0; i < sprayN; i++) {
+        sprayPos[i * 3]     = fx + (Math.random() - 0.5) * (fw + 1.6);
+        sprayPos[i * 3 + 1] = Math.random() * 3;
+        sprayPos[i * 3 + 2] = fz + (Math.random() - 0.2) * 2.2;
+        sprayVel[i * 3]     = (Math.random() - 0.5) * 0.4;
+        sprayVel[i * 3 + 1] = 0.5 + Math.random() * 0.7;
+        sprayVel[i * 3 + 2] = (Math.random() - 0.3) * 0.5;
+    }
+    sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos, 3));
+    const sprayMat = new THREE.PointsMaterial({
+        color: 0xE8F4FF, size: 0.24, transparent: true, opacity: 0.6,
+        depthWrite: false,
+    });
+    scene.add(new THREE.Points(sprayGeo, sprayMat));
+
+    window._tickWaterfall = function (dt) {
+        wTex.offset.y = (wTex.offset.y - dt * 1.8 + 1) % 1;
+        const t = performance.now() * 0.003;
+        pool.scale.set(1 + Math.sin(t) * 0.06, 1, 1 + Math.cos(t * 1.1) * 0.06);
+        const pos = sprayGeo.attributes.position.array;
+        for (let i = 0; i < sprayN; i++) {
+            pos[i * 3]     += sprayVel[i * 3]     * dt;
+            pos[i * 3 + 1] += sprayVel[i * 3 + 1] * dt;
+            pos[i * 3 + 2] += sprayVel[i * 3 + 2] * dt;
+            if (pos[i * 3 + 1] > 3.8) {
+                pos[i * 3]     = fx + (Math.random() - 0.5) * (fw + 1.6);
+                pos[i * 3 + 1] = 0;
+                pos[i * 3 + 2] = fz + (Math.random() - 0.2) * 2.2;
+            }
+        }
+        sprayGeo.attributes.position.needsUpdate = true;
+    };
+})();
+
+// ══════════════════════════════════════════════════════════════════
 // НУУР — Хөвсгөл нуур шиг том, цэнхэр усан гадарга
 // ══════════════════════════════════════════════════════════════════
 const _lakeTex = _mkTex((ctx, s) => {
-    ctx.fillStyle = '#1B72C0'; ctx.fillRect(0, 0, s, s);
-    _scatter(ctx, s, ['#155EA8','#2488D8','#1068B4','#2A80CC','#0E5898'], 0.32);
-    // shimmer streaks
-    for (let i = 0; i < 5; i++) {
-        ctx.fillStyle = 'rgba(160,225,255,0.45)';
-        ctx.fillRect(Math.floor(Math.random()*(s-5)), Math.floor(Math.random()*s), 5, 1);
+    ctx.fillStyle = '#1F84D0'; ctx.fillRect(0, 0, s, s);
+    _scatter(ctx, s, ['#1668B8','#2A98E0','#1278C0','#3AA8F0','#0E5CA8','#52B8FF'], 0.36);
+    // shimmer streaks — олон, тод
+    for (let i = 0; i < 10; i++) {
+        ctx.fillStyle = 'rgba(200,235,255,0.55)';
+        const w = 4 + Math.floor(Math.random() * 4);
+        ctx.fillRect(Math.floor(Math.random()*(s-w)), Math.floor(Math.random()*s), w, 1);
+    }
+    // Хурц тод хөвөгч толбо
+    for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(Math.floor(Math.random()*s), Math.floor(Math.random()*s), 1, 1);
     }
 }, 32);
 _lakeTex.repeat.set(22, 14);
 
 const _lakeMat = new THREE.MeshStandardMaterial({
     color: 0xFFFFFF, map: _lakeTex,
-    transparent: true, opacity: 0.90,
-    roughness: 0.04, metalness: 0.28,
-    depthWrite: false, side: THREE.FrontSide
+    transparent: true, opacity: 0.92,
+    roughness: 0.02, metalness: 0.45,
+    depthWrite: false, side: THREE.FrontSide,
+    emissive: 0x0A2848, emissiveIntensity: 0.18,
 });
 const _lakeMesh = new THREE.Mesh(new THREE.PlaneGeometry(160, 62, 1, 1), _lakeMat);
 _lakeMesh.rotation.x = -Math.PI / 2;
 _lakeMesh.position.set(-2, 0.07, -57);
 scene.add(_lakeMesh);
+
+// Хоёр дахь shimmer давхарга — урвуу чигт хөдөлж "сэрэх" мэт harlaq
+const _lakeShimmerTex = _mkTex((ctx, s) => {
+    ctx.fillStyle = 'rgba(255,255,255,0)'; ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 18; i++) {
+        ctx.fillStyle = 'rgba(220,240,255,0.4)';
+        const w = 3 + Math.floor(Math.random() * 5);
+        ctx.fillRect(Math.floor(Math.random()*(s-w)), Math.floor(Math.random()*s), w, 1);
+    }
+}, 32);
+_lakeShimmerTex.repeat.set(28, 18);
+const _lakeShimmerMat = new THREE.MeshBasicMaterial({
+    map: _lakeShimmerTex, transparent: true, opacity: 0.5,
+    depthWrite: false, side: THREE.FrontSide,
+});
+const _lakeShimmer = new THREE.Mesh(new THREE.PlaneGeometry(160, 62, 1, 1), _lakeShimmerMat);
+_lakeShimmer.rotation.x = -Math.PI / 2;
+_lakeShimmer.position.set(-2, 0.075, -57);
+scene.add(_lakeShimmer);
 
 // Эргийн зурвас — нарийн шарлаг элс
 const _shoreMat = new THREE.MeshStandardMaterial({ color: 0xAA9060, roughness: 0.95 });
@@ -2848,7 +2982,9 @@ const _shoreMat = new THREE.MeshStandardMaterial({ color: 0xAA9060, roughness: 0
 window._tickLake = function(dt) {
     _lakeTex.offset.x = (_lakeTex.offset.x + dt * 0.025) % 1;
     _lakeTex.offset.y = (_lakeTex.offset.y + dt * 0.012) % 1;
-    _lakeTex.needsUpdate = true;
+    // Урвуу чигт хоёр дахь давхарга — гэрэлтсэн "сэрэлт" мэдрэмж
+    _lakeShimmerTex.offset.x = (_lakeShimmerTex.offset.x - dt * 0.018 + 1) % 1;
+    _lakeShimmerTex.offset.y = (_lakeShimmerTex.offset.y + dt * 0.022) % 1;
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -4852,6 +4988,7 @@ renderer.setAnimationLoop((timestamp) => {
     _tickSound(delta, camera.position);
     if (window._tickStreamMist) window._tickStreamMist(delta);
     if (window._tickLake) window._tickLake(delta);
+    if (window._tickWaterfall) window._tickWaterfall(delta);
     _tickSmoke(delta);
     if (isRotating) ger.getObject3D().rotation.y += delta * 0.3;
     _pollVRMenuToggle();
