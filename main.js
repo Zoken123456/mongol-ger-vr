@@ -2094,7 +2094,9 @@ function _getHome(obj)   { return (_homePos.get(obj.uuid) ?? obj.position).clone
     ger.parts['bagana'],
     ger.parts['toono'],
     ger.parts['roof'],
-].forEach(_storeHome);
+    ger.parts['door'],
+    ger.parts['un'],
+].forEach(o => o && _storeHome(o));
 
 // ══════════════════════════════════════════════════════════════════
 // ГАДНА ОРЧИН — Адуу (уяатай+цамцтай), хонь, хүмүүс
