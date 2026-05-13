@@ -1321,21 +1321,20 @@ function _tickInfoPanels() {
 }
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
-const _VR_COLS = 4, _VR_ROWS = 11;
-const _VR_CV_W = 640, _VR_CV_H = 1100;
+const _VR_COLS = 4, _VR_ROWS = 10;
+const _VR_CV_W = 640, _VR_CV_H = 1024;
 
-// VR хөдөлгөөн — товч тус бүр дарахад HMD-ийн чигийг ашиглан 1.5м шилжинэ
-function _vrMoveStep(forward, right) {
+// VR хөдөлгөөн — HMD-ийн чигээр шилжинэ
+function _vrMoveStep(forward, right, step = 1.5) {
     if (!renderer.xr.isPresenting) return;
-    const STEP = 1.5;
     const xrCam = renderer.xr.getCamera();
     const rig = xrCam.parent;
     if (!rig) return;
     const fwd = new THREE.Vector3();
     xrCam.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
     const r3 = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
-    rig.position.addScaledVector(fwd, forward * STEP);
-    rig.position.addScaledVector(r3,  right   * STEP);
+    rig.position.addScaledVector(fwd, forward * step);
+    rig.position.addScaledVector(r3,  right   * step);
 }
 const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
@@ -1446,11 +1445,6 @@ const _vrMenuButtons = [
     { label: 'ӨВӨЛ',  color: '#2E5E8A', action: () => window.toggleWinter && window.toggleWinter() },
     { label: 'ДУУ',   color: '#4A2A5E', action: () => window.toggleSound && window.toggleSound() },
     { label: 'ГЭР ЗАДЛАХ', color: '#A04020', action: () => _vrToggleExplode() },
-    // 11) Хөдөлгөөн — HMD-ийн чигт 1.5м-ээр шилжинэ
-    { label: '↑ УРАГШ',  color: '#1E5A8C', action: () => _vrMoveStep( 1,  0) },
-    { label: '↓ ХОЙШ',   color: '#1E5A8C', action: () => _vrMoveStep(-1,  0) },
-    { label: '← ЗҮҮН',   color: '#1E5A8C', action: () => _vrMoveStep( 0, -1) },
-    { label: '→ БАРУУН', color: '#1E5A8C', action: () => _vrMoveStep( 0,  1) },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -1462,13 +1456,13 @@ _vrTex.minFilter = THREE.LinearFilter;
 _vrTex.magFilter = THREE.LinearFilter;
 
 const _vrMenuMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.34, 0.94),
+    new THREE.PlaneGeometry(0.34, 0.85),
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
 // Толгой дагасан group: A товч дарахад үргэлж яг урд харагдана.
 const _vrMenuGroup = new THREE.Group();
-_vrMenuMesh.position.set(0, -0.14, -0.72);
+_vrMenuMesh.position.set(0, -0.10, -0.70);
 _vrMenuMesh.rotation.y = 0;
 _vrMenuGroup.add(_vrMenuMesh);
 scene.add(_vrMenuGroup);
@@ -1483,6 +1477,56 @@ function _tickVRMenuHeadLock() {
     xrCam.getWorldQuaternion(_vrCamQuat);
     _vrMenuGroup.position.copy(_vrCamPos);
     _vrMenuGroup.quaternion.copy(_vrCamQuat);
+}
+
+// ── VR ГАЗАР ДЭЭРХ ХӨДӨЛГӨӨНИЙ 4 СУМ ──────────────────────
+// Хэрэглэгчийн эргэн тойрон газарт хөвж harag, дарвал 10м тэр чигт шилжинэ
+const _vrMoveArrows = new THREE.Group();
+_vrMoveArrows.name = 'vrMoveArrows';
+_vrMoveArrows.visible = false;
+scene.add(_vrMoveArrows);
+
+function _makeMoveArrow(color, forward, right) {
+    const mat = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 0.5,
+        roughness: 0.4, metalness: 0.25,
+        transparent: true, opacity: 0.92,
+    });
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.8, 10), mat);
+    m.userData.isMoveArrow = true;
+    m.userData.moveDir = { forward, right };
+    return m;
+}
+const _vrArrowFwd   = _makeMoveArrow(0x44E060,  1,  0);  // ногоон, урагш
+const _vrArrowBack  = _makeMoveArrow(0xE04040, -1,  0);  // улаан, хойш
+const _vrArrowLeft  = _makeMoveArrow(0x40A0F0,  0, -1);  // цэнхэр, зүүн
+const _vrArrowRight = _makeMoveArrow(0x40A0F0,  0,  1);  // цэнхэр, баруун
+[_vrArrowFwd, _vrArrowBack, _vrArrowLeft, _vrArrowRight].forEach(a => _vrMoveArrows.add(a));
+
+const _MOVE_ARROW_DIST = 1.5;
+const _MOVE_ARROW_STEP = 10;
+const _UP = new THREE.Vector3(0, 1, 0);
+function _tickVrMoveArrows() {
+    if (!renderer.xr.isPresenting) { _vrMoveArrows.visible = false; return; }
+    _vrMoveArrows.visible = true;
+    const xrCam = renderer.xr.getCamera();
+    const camPos = new THREE.Vector3();
+    xrCam.getWorldPosition(camPos);
+    const fwd = new THREE.Vector3();
+    xrCam.getWorldDirection(fwd); fwd.y = 0;
+    if (fwd.lengthSq() < 0.001) fwd.set(0, 0, -1); else fwd.normalize();
+    const rt = new THREE.Vector3().crossVectors(fwd, _UP).normalize();
+    const Y = 0.18;
+    function place(arrow, dx, dz) {
+        const d = new THREE.Vector3(dx, 0, dz);
+        arrow.position.set(camPos.x + dx * _MOVE_ARROW_DIST, Y, camPos.z + dz * _MOVE_ARROW_DIST);
+        // Cone defaults to +Y; rotate to point along (dx, 0, dz)
+        arrow.quaternion.setFromUnitVectors(_UP, d.normalize());
+    }
+    place(_vrArrowFwd,    fwd.x,   fwd.z);
+    place(_vrArrowBack,  -fwd.x,  -fwd.z);
+    place(_vrArrowLeft,  -rt.x,   -rt.z);
+    place(_vrArrowRight,  rt.x,    rt.z);
 }
 
 let _vrHoverIdx = -1;
@@ -1667,6 +1711,13 @@ _vrCtrl.forEach((entry, idx) => {
             try { fn(); } catch (e) { console.error('build advance:', e); }
             return;
         }
+        // 0.5) Хөдөлгөөний сум — 10м тэр чигт шилжинэ
+        if (_vrHoveredArrow && _vrMoveArrows.visible) {
+            const d = _vrHoveredArrow.userData.moveDir;
+            _vrMoveStep(d.forward, d.right, _MOVE_ARROW_STEP);
+            _tpRing.visible = false;
+            return;
+        }
         // 1) VR цэс дээр заагдсан бол → action гүйцэтгэнэ
         if (_vrHoverIdx >= 0 && _vrMenuMesh.visible) {
             const btn = _vrMenuButtons[_vrHoverIdx];
@@ -1770,17 +1821,20 @@ const _vrOrigin   = new THREE.Vector3();
 const _vrDir      = new THREE.Vector3();
 const _vrQuat     = new THREE.Quaternion();
 
+let _vrHoveredArrow = null;
 function _tickVRControllers() {
     if (!renderer.xr.isPresenting) {
         _tpRing.visible = false;
         _vrHoverIdx = -1;
         _vrSetHoveredPart(null);
+        _vrHoveredArrow = null;
         return;
     }
 
     const prevHover = _vrHoverIdx;
     _vrHoverIdx = -1;
     _vrSliderFrac = -1;
+    _vrHoveredArrow = null;
     let anyTp = false;
     let nearestPart = null;
     let nearestPartDist = Infinity;
@@ -1811,6 +1865,17 @@ function _tickVRControllers() {
                     ray.material.opacity = 0.95;
                     return;
                 }
+            }
+        }
+
+        // 1.5) Хөдөлгөөний сум руу заасан эсэх (газар дээр хөвж байгаа)
+        if (_vrMoveArrows.visible) {
+            const arrowHits = _vrRay.intersectObjects(_vrMoveArrows.children, false);
+            if (arrowHits.length > 0) {
+                _vrHoveredArrow = arrowHits[0].object;
+                ray.scale.z = _vrOrigin.distanceTo(arrowHits[0].point) / 10;
+                ray.material.opacity = 0.95;
+                return;
             }
         }
 
@@ -5013,6 +5078,7 @@ renderer.setAnimationLoop((timestamp) => {
     if (isRotating) ger.getObject3D().rotation.y += delta * 0.3;
     _pollVRMenuToggle();
     _tickVRMenuHeadLock();
+    _tickVrMoveArrows();
     _tickVRControllers();
     _tickVRLocomotion(delta);
     _tickMission();
