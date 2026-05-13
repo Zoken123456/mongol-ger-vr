@@ -1321,8 +1321,22 @@ function _tickInfoPanels() {
 }
 
 // ── VR 3D МЕНЮ ── зүүн гарт наалдана, баруун гараар луч чиглүүлж дарна
-const _VR_COLS = 4, _VR_ROWS = 10;
-const _VR_CV_W = 640, _VR_CV_H = 1024;
+const _VR_COLS = 4, _VR_ROWS = 11;
+const _VR_CV_W = 640, _VR_CV_H = 1100;
+
+// VR хөдөлгөөн — товч тус бүр дарахад HMD-ийн чигийг ашиглан 1.5м шилжинэ
+function _vrMoveStep(forward, right) {
+    if (!renderer.xr.isPresenting) return;
+    const STEP = 1.5;
+    const xrCam = renderer.xr.getCamera();
+    const rig = xrCam.parent;
+    if (!rig) return;
+    const fwd = new THREE.Vector3();
+    xrCam.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+    const r3 = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    rig.position.addScaledVector(fwd, forward * STEP);
+    rig.position.addScaledVector(r3,  right   * STEP);
+}
 const _VR_BW = _VR_CV_W / _VR_COLS;
 const _VR_BH = _VR_CV_H / _VR_ROWS;
 
@@ -1432,6 +1446,11 @@ const _vrMenuButtons = [
     { label: 'ӨВӨЛ',  color: '#2E5E8A', action: () => window.toggleWinter && window.toggleWinter() },
     { label: 'ДУУ',   color: '#4A2A5E', action: () => window.toggleSound && window.toggleSound() },
     { label: 'ГЭР ЗАДЛАХ', color: '#A04020', action: () => _vrToggleExplode() },
+    // 11) Хөдөлгөөн — HMD-ийн чигт 1.5м-ээр шилжинэ
+    { label: '↑ УРАГШ',  color: '#1E5A8C', action: () => _vrMoveStep( 1,  0) },
+    { label: '↓ ХОЙШ',   color: '#1E5A8C', action: () => _vrMoveStep(-1,  0) },
+    { label: '← ЗҮҮН',   color: '#1E5A8C', action: () => _vrMoveStep( 0, -1) },
+    { label: '→ БАРУУН', color: '#1E5A8C', action: () => _vrMoveStep( 0,  1) },
 ];
 
 const _vrCanvas = document.createElement('canvas');
@@ -1443,13 +1462,13 @@ _vrTex.minFilter = THREE.LinearFilter;
 _vrTex.magFilter = THREE.LinearFilter;
 
 const _vrMenuMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.34, 0.85),
+    new THREE.PlaneGeometry(0.34, 0.94),
     new THREE.MeshBasicMaterial({ map: _vrTex, transparent: true, side: THREE.DoubleSide, depthTest: false })
 );
 _vrMenuMesh.renderOrder = 999;
 // Толгой дагасан group: A товч дарахад үргэлж яг урд харагдана.
 const _vrMenuGroup = new THREE.Group();
-_vrMenuMesh.position.set(0, -0.10, -0.70);
+_vrMenuMesh.position.set(0, -0.14, -0.72);
 _vrMenuMesh.rotation.y = 0;
 _vrMenuGroup.add(_vrMenuMesh);
 scene.add(_vrMenuGroup);
