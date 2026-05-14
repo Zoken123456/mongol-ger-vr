@@ -5322,6 +5322,7 @@ renderer.setAnimationLoop((timestamp) => {
     _tickInfoPanels();
     _tickHintPanel();
     _tickProgress();
+    _tickGhost();
     if (window._tickRiding) window._tickRiding(delta);
     if (window._tickFlags)  window._tickFlags(delta);
 
@@ -5875,10 +5876,77 @@ function _runInteractiveStep() {
         _showMission(step.label, 60000);
     }
 }
+// ── Phase 3: Ghost preview — home байр дээр wireframe placeholder ─
+const _ghostMeshes = new Map();
+let _ghostsInited = false;
+function _ensureGhosts() {
+    if (_ghostsInited) return;
+    _ghostsInited = true;
+    for (const key of Object.keys(_DRAG_SCATTER)) {
+        const part = _getPartTarget(key);
+        if (!part) continue;
+        const g = part.clone();
+        g.traverse(o => {
+            if (o.isMesh) {
+                o.material = new THREE.MeshBasicMaterial({
+                    color: 0x44CC88, wireframe: true,
+                    transparent: true, opacity: 0.4,
+                    depthWrite: false,
+                });
+                o.castShadow = false;
+                o.receiveShadow = false;
+            }
+        });
+        const home = _getHome(part);
+        g.position.copy(home);
+        g.visible = false;
+        if (part.parent) part.parent.add(g);
+        _ghostMeshes.set(key, g);
+    }
+}
+function _tickGhost() {
+    if (!_interactiveBuild) {
+        if (_ghostsInited) for (const g of _ghostMeshes.values()) g.visible = false;
+        return;
+    }
+    if (!_ghostsInited) return;
+    const step = _DRAG_STEPS[_interactiveStep];
+    const activeKey = step && step.mode === 'drag' ? step.part : null;
+    // Grabbed part-аас home хүртэлх distance — glow strength нэмнэ
+    let grabDist = Infinity;
+    for (const side of ['left', 'right']) {
+        const gr = _vrGrab[side];
+        if (gr.part && gr.homeWorld) {
+            const pw = new THREE.Vector3();
+            gr.part.getWorldPosition(pw);
+            const d = pw.distanceTo(gr.homeWorld);
+            if (d < grabDist) grabDist = d;
+        }
+    }
+    const glowing = grabDist < 1.2;
+    const pulse = 0.32 + 0.18 * Math.sin(performance.now() * 0.004);
+    const color = glowing ? 0xFFD040 : 0x44CC88;
+    const opacity = glowing ? 0.65 : pulse;
+    for (const [key, ghost] of _ghostMeshes) {
+        if (key === activeKey) {
+            ghost.visible = true;
+            ghost.traverse(o => {
+                if (o.isMesh && o.material) {
+                    o.material.color.setHex(color);
+                    o.material.opacity = opacity;
+                }
+            });
+        } else {
+            ghost.visible = false;
+        }
+    }
+}
+
 function _startInteractiveBuild() {
     _interactiveBuild = true;
     _interactiveStep = 0;
     _resetGerForBuild();
+    _ensureGhosts();
     _scatterForDrag();
     _showMission('Хэсгүүдийг ээлжээр\nгазраас чирэн тавь!', 3000);
     setTimeout(_runInteractiveStep, 2700);
