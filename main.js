@@ -1183,6 +1183,46 @@ function _showMission(text, duration = 2800) {
     _subtitlePanel.mesh.visible = true;
     _missionMsgUntil = performance.now() + duration;
 }
+
+// ── Phase 5: Барилгын явц % индикатор ────────────────────────
+const _progressPanel = _makePanel(0.32, 0.11, 768);
+_progressPanel.mesh.position.set(-0.40, 0.28, -0.85);
+_progressPanel.mesh.visible = false;
+_missionGroup.add(_progressPanel.mesh);
+let _lastProgressPct = -1;
+function _drawProgress(pct) {
+    const { ctx, cv, tex } = _progressPanel;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(16, 32, 22, 0.92)';
+    _roundRect(ctx, 0, 0, cv.width, cv.height, 22); ctx.fill();
+    ctx.strokeStyle = '#44CC88'; ctx.lineWidth = 6;
+    _roundRect(ctx, 6, 6, cv.width - 12, cv.height - 12, 18); ctx.stroke();
+    ctx.fillStyle = '#DDFFE8';
+    ctx.font = 'bold 44px "Segoe UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`Явц ${pct}%`, 22, 16);
+    // Progress bar
+    const bx = 22, by = 130, bw = cv.width - 44, bh = 28;
+    ctx.fillStyle = '#1A2820'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = pct >= 100 ? '#FFD040' : '#44CC88';
+    ctx.fillRect(bx, by, bw * pct / 100, bh);
+    ctx.strokeStyle = '#88FFAA'; ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+    tex.needsUpdate = true;
+}
+function _tickProgress() {
+    if (!_interactiveBuild) {
+        if (_progressPanel.mesh.visible) _progressPanel.mesh.visible = false;
+        _lastProgressPct = -1;
+        return;
+    }
+    _progressPanel.mesh.visible = true;
+    const pct = Math.min(100, Math.floor((_interactiveStep / _DRAG_STEPS.length) * 100));
+    if (pct !== _lastProgressPct) {
+        _lastProgressPct = pct;
+        _drawProgress(pct);
+    }
+}
 function _scheduleMsg(at, text, _ignored = 0, dur = 2200) {
     setTimeout(() => _showMission(text, dur), at);
 }
@@ -1253,6 +1293,63 @@ function _initInfoPanels() {
     });
 }
 _initInfoPanels();
+
+// ── Phase 4: ОДООГИЙН АЛХАМЫН floating hint panel ─────────────
+const _PART_DISPLAY_NAMES = {
+    door: 'ХААЛГА', toono: 'ТООНО', bagana: 'БАГАНА',
+    roof: 'ДЭЭВЭР',
+    'tuurga-1': 'УРД ТУУРГА', 'tuurga-2': 'ХОЙД ТУУРГА',
+    'bvsluur-1': 'ДООД БҮС',  'bvsluur-2': 'ДУНД БҮС', 'bvsluur-3': 'ДЭЭД БҮС',
+};
+const _hintPanel = _makePanel(0.85, 0.22, 1024);
+_hintPanel.mesh.visible = false;
+scene.add(_hintPanel.mesh);
+let _hintLastText = '';
+function _drawHint(text, color = '#44FF88') {
+    const { ctx, cv, tex } = _hintPanel;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = 'rgba(18, 22, 30, 0.92)';
+    _roundRect(ctx, 0, 0, cv.width, cv.height, 32); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 8;
+    _roundRect(ctx, 8, 8, cv.width - 16, cv.height - 16, 26); ctx.stroke();
+    ctx.fillStyle = '#FFFFE0';
+    ctx.font = 'bold 72px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lines = String(text).split('\n');
+    const lineH = 80;
+    const startY = cv.height / 2 - (lines.length - 1) * lineH / 2;
+    lines.forEach((line, i) => ctx.fillText(line, cv.width / 2, startY + i * lineH));
+    tex.needsUpdate = true;
+}
+const _hintCam = new THREE.Vector3();
+const _hintDir = new THREE.Vector3();
+function _tickHintPanel() {
+    if (!_interactiveBuild) { _hintPanel.mesh.visible = false; _hintLastText = ''; return; }
+    const step = _DRAG_STEPS[_interactiveStep];
+    if (!step) { _hintPanel.mesh.visible = false; return; }
+
+    let label, anchorX = 0, anchorZ = 0, anchorY = 4;
+    if (step.mode === 'drag') {
+        const target = _getPartTarget(step.part);
+        if (!target) { _hintPanel.mesh.visible = false; return; }
+        const wp = new THREE.Vector3();
+        target.getWorldPosition(wp);
+        anchorX = wp.x; anchorZ = wp.z; anchorY = wp.y + 1.4;
+        label = `${_PART_DISPLAY_NAMES[step.part] || step.part}\n→ барь`;
+    } else {
+        // auto алхам (хана/унь) — гэрийн дээрх
+        label = step.label;
+    }
+    if (label !== _hintLastText) { _hintLastText = label; _drawHint(label); }
+    const bob = Math.sin(performance.now() * 0.003) * 0.08;
+    _hintPanel.mesh.position.set(anchorX, anchorY + bob, anchorZ);
+    // Billboard
+    const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+    cam.getWorldPosition(_hintCam);
+    _hintDir.copy(_hintCam).sub(_hintPanel.mesh.position); _hintDir.y = 0;
+    _hintPanel.mesh.rotation.set(0, Math.atan2(_hintDir.x, _hintDir.z), 0);
+    _hintPanel.mesh.visible = true;
+}
 
 let _explodedMode = false;
 const _scatterRemaining = new Set();        // uuid-ууд (хэсгүүд хараахан тавиагүй)
@@ -5223,6 +5320,8 @@ renderer.setAnimationLoop((timestamp) => {
     _tickVRGrab();
     _tickMission();
     _tickInfoPanels();
+    _tickHintPanel();
+    _tickProgress();
     if (window._tickRiding) window._tickRiding(delta);
     if (window._tickFlags)  window._tickFlags(delta);
 
