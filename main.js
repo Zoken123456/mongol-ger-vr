@@ -1753,12 +1753,151 @@ _vrCtrl.forEach((entry, idx) => {
         }
     });
     entry.ctrl.addEventListener('selectend', () => { entry.tpReady = false; });
-    // Squeeze (grip) = хаалга нээх/хаах
+    // Squeeze (grip) = grab нэг хэсэг scatter-аас; үгүй бол хаалга нээх
     entry.ctrl.addEventListener('squeezestart', () => {
-        ger.openDoor();
-        setTimeout(() => ger.closeDoor(), 3000);
+        if (!_vrGrabStart(entry)) {
+            ger.openDoor();
+            setTimeout(() => ger.closeDoor(), 3000);
+        }
     });
+    entry.ctrl.addEventListener('squeezeend', () => _vrGrabEnd(entry));
 });
+
+// ══════════════════════════════════════════════════════════════════
+// VR ХОЁР ГАРААР GRAB + MAGNETIC SNAP (interactive ger build)
+// ══════════════════════════════════════════════════════════════════
+const _vrGrab = {
+    left:  { part: null, controller: null, offset: new THREE.Vector3(), homeWorld: null, originalParent: null, grabTime: 0 },
+    right: { part: null, controller: null, offset: new THREE.Vector3(), homeWorld: null, originalParent: null, grabTime: 0 },
+};
+const _GRAB_RANGE        = 0.65;   // controller-ээс хэсэг хүртэлх grab зай
+const _SNAP_DIST         = 0.85;   // home-аас snap болох зай
+const _MAGNET_BASE       = 2.0;    // эхний 3s magnetic радиус
+const _MAGNET_LATE       = 4.0;    // 3s-аас дээш барьж байсан үед өргөсөнө
+const _MAGNET_PULL       = 0.35;   // нэг кадрын lerp хэмжээ (max)
+
+function _findPartKey(part) {
+    for (const key of Object.keys(_DRAG_SCATTER)) {
+        if (_getPartTarget(key) === part) return key;
+    }
+    return null;
+}
+function _setGrabOutline(obj, color) {
+    obj.traverse(m => {
+        if (!m.isMesh || !m.material || m.material.emissive === undefined) return;
+        if (color === null) {
+            m.material.emissive.setHex(0);
+            m.material.emissiveIntensity = 0;
+        } else {
+            m.material.emissive.setHex(color);
+            m.material.emissiveIntensity = color === 0x00ff44 ? 0.65 : 0.35;
+        }
+    });
+}
+function _vrFindGrabbable(ctrl) {
+    const cp = new THREE.Vector3();
+    ctrl.getWorldPosition(cp);
+    let best = null, bestD = _GRAB_RANGE;
+    for (const key of Object.keys(_DRAG_SCATTER)) {
+        const part = _getPartTarget(key);
+        if (!part || !part.visible) continue;
+        // Аль хэдийн home байранд орсон хэсгийг алгасна
+        const homeLocal = _getHome(part);
+        const homeW = part.parent.localToWorld(homeLocal.clone());
+        const partW = new THREE.Vector3();
+        part.getWorldPosition(partW);
+        if (partW.distanceTo(homeW) < 1.0) continue;   // placed
+        const d = partW.distanceTo(cp);
+        if (d < bestD) { bestD = d; best = part; }
+    }
+    return best;
+}
+function _vrGrabStart(entry) {
+    if (!entry.handedness) return false;
+    const g = _vrGrab[entry.handedness];
+    if (g.part) return false;
+    const part = _vrFindGrabbable(entry.ctrl);
+    if (!part) return false;
+    g.originalParent = part.parent;
+    const homeLocal = _getHome(part);
+    g.homeWorld = part.parent.localToWorld(homeLocal.clone());
+    // Дэлхийн координат хадгалж scene руу re-parent (controller-ийн дагуу хөдлөнө)
+    scene.attach(part);
+    part.scale.set(1, 1, 1);  // grab үед бүрэн хэмжээ
+    g.part = part;
+    g.controller = entry.ctrl;
+    const cp = new THREE.Vector3();
+    entry.ctrl.getWorldPosition(cp);
+    g.offset.copy(part.position).sub(cp);
+    g.grabTime = performance.now();
+    _setGrabOutline(part, 0x88AACC);
+    return true;
+}
+function _vrGrabEnd(entry) {
+    if (!entry.handedness) return;
+    const g = _vrGrab[entry.handedness];
+    if (!g.part) return;
+    const part = g.part;
+    const pw = new THREE.Vector3();
+    part.getWorldPosition(pw);
+    const d = pw.distanceTo(g.homeWorld);
+    _setGrabOutline(part, null);
+    if (d < _SNAP_DIST) {
+        // Snap home: дэлхийн pos болгож, original parent руу re-parent
+        part.position.copy(g.homeWorld);
+        g.originalParent.attach(part);
+        // Алхамтай таарвал урагшилна
+        _advanceIfMatchesCurrentStep(part);
+    } else {
+        // Scatter-руу буцна
+        const key = _findPartKey(part);
+        if (key && _DRAG_SCATTER[key]) {
+            const [x, z] = _DRAG_SCATTER[key];
+            const sc = _DRAG_SCALE[key] ?? 1;
+            animTo(part, new THREE.Vector3(x, 0.5, z), 0.5);
+            part.scale.set(sc, sc, sc);
+            // Анимац дуусахад re-parent (animTo callback)
+            setTimeout(() => {
+                if (g.originalParent) g.originalParent.attach(part);
+            }, 550);
+        }
+    }
+    g.part = null;
+    g.controller = null;
+    g.originalParent = null;
+    g.homeWorld = null;
+}
+function _tickVRGrab() {
+    for (const side of ['left', 'right']) {
+        const g = _vrGrab[side];
+        if (!g.part || !g.controller) continue;
+        const cp = new THREE.Vector3();
+        g.controller.getWorldPosition(cp);
+        const target = cp.clone().add(g.offset);
+        const d = target.distanceTo(g.homeWorld);
+        const held = (performance.now() - g.grabTime) / 1000;
+        const range = held > 3 ? _MAGNET_LATE : _MAGNET_BASE;
+        if (d < range) {
+            const t = 1 - (d / range);
+            target.lerp(g.homeWorld, t * _MAGNET_PULL);
+        }
+        g.part.position.copy(target);
+        _setGrabOutline(g.part, d < _SNAP_DIST ? 0x00FF44 : 0x88AACC);
+    }
+}
+function _advanceIfMatchesCurrentStep(part) {
+    if (!_interactiveBuild) return;
+    const step = _DRAG_STEPS[_interactiveStep];
+    if (!step || step.mode !== 'drag') return;
+    const expected = _getPartTarget(step.part);
+    if (expected === part) {
+        _showMission('Сайн байна!', 1200);
+        _interactiveStep++;
+        setTimeout(_runInteractiveStep, 1400);
+    } else {
+        _showMission('Уучлаарай —\nдараалал зөв биш.', 2000);
+    }
+}
 
 // ── VR LOCOMOTION — зүүн thumbstick = чөлөөт алхам, баруун = snap-turn ──
 const _VR_MOVE_SPEED = 3.0;        // м/с
@@ -5081,6 +5220,7 @@ renderer.setAnimationLoop((timestamp) => {
     _tickVrMoveArrows();
     _tickVRControllers();
     _tickVRLocomotion(delta);
+    _tickVRGrab();
     _tickMission();
     _tickInfoPanels();
     if (window._tickRiding) window._tickRiding(delta);
@@ -5684,15 +5824,11 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 window.placeNextPart = _placeCurrentPart; // дэлгэцэн дээрх "Үргэлжлүүлэх" товчоос дуудаж болно
 
 window.buildGer = function () {
+    // PC болон VR хоёуланд нь — scatter дээр хэсэг гарч, хэрэглэгч өөрөө тавина
     _resetGerForBuild();
-    if (renderer.xr.isPresenting) {
-        // VR — алхам бүрд trigger хүлээдэг хуучин урсгал
-        _showMission('За хүү минь!\nГэрээ барицгаая.', 2200);
-        setTimeout(() => _runBuildStep(0), 2300);
-    } else {
-        // PC — drag-and-drop interactive
-        _startInteractiveBuild();
-    }
+    isRotating = false;
+    ger.getObject3D().rotation.y = 0;
+    _startInteractiveBuild();
 };
 
 // Ашиглагдахгүй болсон auto-build хуучин код доор
