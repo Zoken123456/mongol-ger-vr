@@ -1852,13 +1852,54 @@ _vrCtrl.forEach((entry, idx) => {
     entry.ctrl.addEventListener('selectend', () => { entry.tpReady = false; });
     // Squeeze (grip) = grab нэг хэсэг scatter-аас; үгүй бол хаалга нээх
     entry.ctrl.addEventListener('squeezestart', () => {
+        if (entry.handedness) _vrGripDown[entry.handedness] = true;
+        if (_khanaStretchActive) return;   // stretch үед grab-аас тусгаарлана
         if (!_vrGrabStart(entry)) {
             ger.openDoor();
             setTimeout(() => ger.closeDoor(), 3000);
         }
     });
-    entry.ctrl.addEventListener('squeezeend', () => _vrGrabEnd(entry));
+    entry.ctrl.addEventListener('squeezeend', () => {
+        if (entry.handedness) _vrGripDown[entry.handedness] = false;
+        _vrGrabEnd(entry);
+        _checkKhanaStretchComplete();
+    });
 });
+
+// ── Phase 2: ХАНА хоёр гарын stretch gesture ──────────────────
+const _vrGripDown = { left: false, right: false };
+let _khanaStretchActive = false;
+let _khanaCurrentFold   = 0.08;
+const _STRETCH_MIN_D = 0.20;   // м — folded хэмжээ
+const _STRETCH_MAX_D = 1.40;   // м — бүрэн дэлгэгдсэн
+const _STRETCH_THRESHOLD = 0.85;
+function _tickKhanaStretch() {
+    if (!_khanaStretchActive || !renderer.xr.isPresenting) return;
+    if (!_vrGripDown.left || !_vrGripDown.right) return;
+    const L = _vrCtrl.find(e => e.handedness === 'left');
+    const R = _vrCtrl.find(e => e.handedness === 'right');
+    if (!L || !R || !L.ctrl.visible || !R.ctrl.visible) return;
+    const lp = new THREE.Vector3(); L.ctrl.getWorldPosition(lp);
+    const rp = new THREE.Vector3(); R.ctrl.getWorldPosition(rp);
+    const d = lp.distanceTo(rp);
+    const t = Math.max(0, Math.min(1, (d - _STRETCH_MIN_D) / (_STRETCH_MAX_D - _STRETCH_MIN_D)));
+    const fold = 0.08 + t * (1.0 - 0.08);
+    _khanaCurrentFold = fold;
+    ger.setKhanaFold(-1, fold);
+}
+function _checkKhanaStretchComplete() {
+    if (!_khanaStretchActive) return;
+    // Хоёр гар хоёулаа гаргасан үед үнэлэх
+    if (_vrGripDown.left || _vrGripDown.right) return;
+    if (_khanaCurrentFold >= _STRETCH_THRESHOLD) {
+        _khanaStretchActive = false;
+        ger.setKhanaFold(-1, 1.0);
+        _khanaCurrentFold = 1.0;
+        _showMission('Шилдэг!\nХана дэлгэгдлээ.', 1500);
+        _interactiveStep++;
+        setTimeout(_runInteractiveStep, 1500);
+    }
+}
 
 // ══════════════════════════════════════════════════════════════════
 // VR ХОЁР ГАРААР GRAB + MAGNETIC SNAP (interactive ger build)
@@ -5318,6 +5359,7 @@ renderer.setAnimationLoop((timestamp) => {
     _tickVRControllers();
     _tickVRLocomotion(delta);
     _tickVRGrab();
+    _tickKhanaStretch();
     _tickMission();
     _tickInfoPanels();
     _tickHintPanel();
@@ -5817,7 +5859,7 @@ const _DRAG_SCALE = {
     'bvsluur-3': 0.55,
 };
 const _DRAG_STEPS = [
-    { id: 'khana',    label: 'Хана дэлгэе',         mode: 'auto', anim: _animKhana, ms: _ANIM_KHANA_MS },
+    { id: 'khana',    label: 'Ханыг дэлгэе\n(хоёр гараар татах)', mode: 'stretch' },
     { id: 'door',     label: 'Хаалга чирээд тавь',   mode: 'drag', part: 'door' },
     { id: 'toono',    label: 'Тооно чирээд тавь',    mode: 'drag', part: 'toono' },
     { id: 'bagana',   label: 'Багана чирээд тавь',   mode: 'drag', part: 'bagana' },
@@ -5872,6 +5914,25 @@ function _runInteractiveStep() {
                 setTimeout(_runInteractiveStep, 1300);
             }, step.ms);
         }, 1500);
+    } else if (step.mode === 'stretch') {
+        // Хана хоёр гараар татах gesture
+        ger.setKhanaVisible(-1, true);
+        ger.setKhanaFold(-1, 0.08);
+        _khanaCurrentFold = 0.08;
+        _showMission(step.label, 60000);
+        if (renderer.xr.isPresenting) {
+            _khanaStretchActive = true;
+        } else {
+            // PC: gesture хийх боломжгүй тул автомат анимац
+            setTimeout(() => {
+                _animKhana();
+                setTimeout(() => {
+                    _showMission('Сайн байна!', 1200);
+                    _interactiveStep++;
+                    setTimeout(_runInteractiveStep, 1300);
+                }, _ANIM_KHANA_MS);
+            }, 1800);
+        }
     } else {
         _showMission(step.label, 60000);
     }
