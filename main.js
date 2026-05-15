@@ -1394,7 +1394,12 @@ function _vrAssemble() {
      ...ger.getBvsluur().getBands(),
      ger.parts['bagana'], ger.parts['toono'], ger.parts['roof'], ger.parts['door'],
      ger.parts['un']
-    ].forEach(o => { if (o) { _anims.delete(o.uuid); o.position.copy(_getHome(o)); } });
+    ].forEach(o => {
+        if (!o) return;
+        _anims.delete(o.uuid);
+        o.position.copy(_getHome(o));
+        o.scale.set(1, 1, 1);  // scatter-аас үлдсэн жижиг scale-ийг сэргээх
+    });
     // Унийн bar-уудын scale + visible-ийг сэргээх (анимацаас дутуу байсан бол)
     const uniGrp = ger.parts['un'];
     if (uniGrp) uniGrp.children.forEach(b => { b.visible = true; b.scale.set(1, 1, 1); });
