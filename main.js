@@ -19,6 +19,7 @@ import { Toono }   from './classes/toono.js';
 import { Uni }     from './classes/uni.js';
 import { Tuurga }  from './classes/tuurga.js';
 import { Bvsluur } from './classes/bvsluur.js';
+import { setupLifelike, tickLifelike } from './classes/lifelike.js';
 
 // ══════════════════════════════════════════════════════════════════
 // PROCEDURAL TEXTURE HELPERS — noise-based normal/roughness maps
@@ -781,9 +782,14 @@ class MongolianGer {
         const _roofMat = new THREE.MeshStandardMaterial({ color: 0xE8D8B0, roughness: 0.82, side: THREE.DoubleSide });
         const _roofMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(toonoR + 0.05, R + 0.05, roofH, 32, 1, true), _roofMat);
-        _roofMesh.position.set(0, wallH + roofH / 2, 0);
+        // Mesh-ийг group-ийн төвд (local 0,0,0) тавьж, ГРУПП өөрийг
+        // дээвэр байх ёстой өндөрт байрлуулна. Ингэснээр _storeHome нь
+        // үнэн зөв home (өндөр) хадгалж, VR drag&snap зөв ажиллана.
+        _roofMesh.position.set(0, 0, 0);
         _roofMesh.castShadow = true; _roofMesh.receiveShadow = true;
-        const _roofGroup = new THREE.Group(); _roofGroup.add(_roofMesh);
+        const _roofGroup = new THREE.Group();
+        _roofGroup.position.set(0, wallH + roofH / 2, 0);
+        _roofGroup.add(_roofMesh);
         this._group.add(_roofGroup);
         this.parts['roof'] = _roofGroup;
 
@@ -2034,7 +2040,7 @@ function _advanceIfMatchesCurrentStep(part) {
     if (!step || step.mode !== 'drag') return;
     const expected = _getPartTarget(step.part);
     if (expected === part) {
-        _showMission('Сайн байна!', 1200);
+        _showMission('✓ Амжилттай байрлалаа!', 1400);
         _interactiveStep++;
         setTimeout(_runInteractiveStep, 1400);
     } else {
@@ -2043,7 +2049,7 @@ function _advanceIfMatchesCurrentStep(part) {
 }
 
 // ── VR LOCOMOTION — зүүн thumbstick = чөлөөт алхам, баруун = snap-turn ──
-const _VR_MOVE_SPEED = 3.0;        // м/с
+const _VR_MOVE_SPEED = 1.5;        // м/с (багшийн шаардлага)
 const _VR_DEADZONE   = 0.15;
 const _VR_SNAP_ANGLE = Math.PI / 6; // 30°
 let   _vrSnapReady   = true;
@@ -5310,6 +5316,12 @@ addInhabitant(_milkWoman, [
 ]);
 
 // ══════════════════════════════════════════════════════════════════
+// LIFELIKE — статик морь/хүнийг амьд болгох (rig + idle + VR look-at)
+// ══════════════════════════════════════════════════════════════════
+const _lf = setupLifelike(scene);
+console.log(`[lifelike] ${_lf.horses} морь, ${_lf.persons} хүн амьдаршлаа`);
+
+// ══════════════════════════════════════════════════════════════════
 // ANIMATION LOOP  (renderer.setAnimationLoop → VR-д ажиллана)
 // ══════════════════════════════════════════════════════════════════
 let isRotating = false;
@@ -5372,16 +5384,27 @@ renderer.setAnimationLoop((timestamp) => {
     _tickGhost();
     if (window._tickRiding) window._tickRiding(delta);
     if (window._tickFlags)  window._tickFlags(delta);
+    tickLifelike(delta, camera, _ridingHorse);
 
     if (isWalking && walkControls.isLocked && !_ridingHorse) {
         const speed = 4;
         const dir = new THREE.Vector3();
         camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
         const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
-        if (move.w) camera.position.addScaledVector(dir,   speed * delta);
-        if (move.s) camera.position.addScaledVector(dir,  -speed * delta);
-        if (move.a) camera.position.addScaledVector(right, -speed * delta);
-        if (move.d) camera.position.addScaledVector(right,  speed * delta);
+        const step = speed * delta;
+        // Алхамтай collision хайлт — ger хана, мод, хашаа гэх мэт саадтай мөргөхгүй
+        const tryStep = (dx, dz) => {
+            if (Math.hypot(dx, dz) < 1e-5) return;
+            const d = Math.hypot(dx, dz);
+            if (typeof _walkBlocked === 'function' &&
+                _walkBlocked(camera.position.x, camera.position.z, dx, dz, d + 0.35)) return;
+            camera.position.x += dx;
+            camera.position.z += dz;
+        };
+        if (move.w) tryStep( dir.x * step,  dir.z * step);
+        if (move.s) tryStep(-dir.x * step, -dir.z * step);
+        if (move.a) tryStep(-right.x * step, -right.z * step);
+        if (move.d) tryStep( right.x * step,  right.z * step);
         camera.position.y = 1.6;
     }
 
@@ -5863,18 +5886,19 @@ const _DRAG_SCALE = {
     'bvsluur-2': 0.55,
     'bvsluur-3': 0.55,
 };
+// Угсралтын дараалал: хаалга → хана → багана → тооно → унь → бүрээс → чангалаа
 const _DRAG_STEPS = [
-    { id: 'khana',    label: 'Ханыг дэлгэе\n(хоёр гараар татах)', mode: 'stretch' },
-    { id: 'door',     label: 'Хаалга чирээд тавь',   mode: 'drag', part: 'door' },
-    { id: 'toono',    label: 'Тооно чирээд тавь',    mode: 'drag', part: 'toono' },
-    { id: 'bagana',   label: 'Багана чирээд тавь',   mode: 'drag', part: 'bagana' },
-    { id: 'un',       label: 'Унь хатгана',         mode: 'auto', anim: _animUni, ms: _ANIM_UNI_MS },
-    { id: 'roof',     label: 'Дээвэр чирээд тавь',   mode: 'drag', part: 'roof' },
-    { id: 'tuurga-1', label: 'Урд туургыг чирэх',    mode: 'drag', part: 'tuurga-1' },
-    { id: 'tuurga-2', label: 'Хойд туургыг чирэх',   mode: 'drag', part: 'tuurga-2' },
-    { id: 'bvsluur-1', label: 'Доод бүс чирэх',     mode: 'drag', part: 'bvsluur-1' },
-    { id: 'bvsluur-2', label: 'Дунд бүс чирэх',     mode: 'drag', part: 'bvsluur-2' },
-    { id: 'bvsluur-3', label: 'Дээд бүс чирэх',     mode: 'drag', part: 'bvsluur-3' },
+    { id: 'door',     label: '1. Хаалга — чирээд тавь',         mode: 'drag', part: 'door' },
+    { id: 'khana',    label: '2. Хана — хоёр гараар татаж дэлгэ', mode: 'stretch' },
+    { id: 'bagana',   label: '3. Багана — чирээд тавь',         mode: 'drag', part: 'bagana' },
+    { id: 'toono',    label: '4. Тооно — чирээд тавь',          mode: 'drag', part: 'toono' },
+    { id: 'un',       label: '5. Унь — хатгана',                mode: 'auto', anim: _animUni, ms: _ANIM_UNI_MS },
+    { id: 'roof',     label: '6. Бүрээс — дээвэр чирээд тавь',  mode: 'drag', part: 'roof' },
+    { id: 'tuurga-1', label: '6. Бүрээс — урд туургыг чирэх',   mode: 'drag', part: 'tuurga-1' },
+    { id: 'tuurga-2', label: '6. Бүрээс — хойд туургыг чирэх',  mode: 'drag', part: 'tuurga-2' },
+    { id: 'bvsluur-1', label: '7. Чангалаа — доод бүс чирэх',   mode: 'drag', part: 'bvsluur-1' },
+    { id: 'bvsluur-2', label: '7. Чангалаа — дунд бүс чирэх',   mode: 'drag', part: 'bvsluur-2' },
+    { id: 'bvsluur-3', label: '7. Чангалаа — дээд бүс чирэх',   mode: 'drag', part: 'bvsluur-3' },
 ];
 const _DRAG_SNAP = 1.6;
 const _DRAG_GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5); // y=0.5 хавтгай
@@ -6042,19 +6066,52 @@ function _placeCurrentPart() {
         };
         stepFn();
     }
-    _showMission('Сайн байна!', 1200);
+    _showMission('✓ Амжилттай байрлалаа!', 1400);
     _interactiveStep++;
     setTimeout(_runInteractiveStep, 1400);
 }
+// ── Scatter-т байгаа хэсгийг home руу нь нисгэх (build-ийн төлвөөс
+// үл хамаараад ажиллана — interactive build дуусчихсан ч click-ээр
+// үлдсэн хэсгүүдийг тавих боломжтой). ─────────────────────────────
+function _placeAnyScatteredPart() {
+    for (const key of Object.keys(_DRAG_SCATTER)) {
+        const target = _getPartTarget(key);
+        if (!target || !target.visible) continue;
+        const home = _getHome(target);
+        if (target.position.distanceTo(home) < 0.5) continue;  // аль хэдийн home
+        const startScale = target.scale.x;
+        animTo(target, home.clone(), 0.65, target.position.clone());
+        if (Math.abs(startScale - 1) > 0.01) {
+            const t0 = performance.now();
+            const dur = 650;
+            const stepFn = () => {
+                const t = Math.min(1, (performance.now() - t0) / dur);
+                const e = 1 - Math.pow(1 - t, 3);
+                const s = startScale + (1 - startScale) * e;
+                target.scale.set(s, s, s);
+                if (t < 1) requestAnimationFrame(stepFn);
+                else target.scale.set(1, 1, 1);
+            };
+            stepFn();
+        }
+        return true;
+    }
+    return false;
+}
+
 renderer.domElement.addEventListener('pointerdown', (e) => {
-    if (!_interactiveBuild || renderer.xr.isPresenting) return;
-    const step = _DRAG_STEPS[_interactiveStep];
-    if (!step || step.mode !== 'drag') return;
-    // Drag горимд canvas дээр аль ч газар дархад одоогийн хэсэг home рүү очно.
-    // (Хатуу raycast hit шаардаагүй — хүүхдэд илүү ойлгомжтой UX)
-    _placeCurrentPart();
+    if (renderer.xr.isPresenting) return;
+    // 1) Interactive build идэвхтэй бол → стрикт дараалал
+    if (_interactiveBuild) {
+        const step = _DRAG_STEPS[_interactiveStep];
+        if (step && step.mode === 'drag') _placeCurrentPart();
+        return;
+    }
+    // 2) Build идэвхгүй ч scatter-т хэсэг үлдсэн бол тавина (fallback)
+    _placeAnyScatteredPart();
 });
-window.placeNextPart = _placeCurrentPart; // дэлгэцэн дээрх "Үргэлжлүүлэх" товчоос дуудаж болно
+window.placeNextPart  = _placeCurrentPart;
+window.placeAllParts  = () => { while (_placeAnyScatteredPart()) {} };  // devtools-оос нэгэн зэрэг бүгдийг
 
 window.buildGer = function () {
     // PC болон VR хоёуланд нь — scatter дээр хэсэг гарч, хэрэглэгч өөрөө тавина
@@ -6726,7 +6783,19 @@ function _buildFpHands(coatColor) {
     });
 }
 camera.add(_fpRig);
-scene.add(camera);
+// ── PLAYER RIG ─────────────────────────────────────────────────────
+// camera-г бүлэгт хийнэ. three.js cameraXR.matrixWorld-ийг
+// camera.parent.matrixWorld-ээс тооцдог тул rig-ийг хөдөлгөхөд
+// VR харагдац зөв шилжинэ. Үүнгүйгээр (scene.add(camera)) бол
+// xrCam.parent === null болж бүх VR locomotion/teleport ажиллахгүй.
+const playerRig = new THREE.Group();
+playerRig.name = 'playerRig';
+playerRig.add(camera);
+scene.add(playerRig);
+// three.js нь cameraXR.parent-ийг өөрөө онооодоггүй тул гараар холбоно.
+// Энэ нь зөвхөн апп-ийн `xrCam.parent` хайлтад үйлчилнэ (three.js
+// дотроо camera.parent-ийг ашигладаг тул аюулгүй).
+renderer.xr.getCamera().parent = playerRig;
 _fpRig.visible = false;
 
 function _possessPerson(person) {
@@ -6771,19 +6840,55 @@ function _unpossessPerson() {
     _fpRig.visible = false;
 }
 
+// Хазаар (reins) — морины бажин амнаас унаачийн гар хүртэл сунгасан жолоо.
+// Хэрэглэгч A/D-аар чигийг өөрчилнө = жинхэнэ хазаараар жолоодсонтой адил.
+function _attachLongReins(horse) {
+    if (horse.userData.__longReins) return;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4A2010, roughness: 0.82 });
+    const reins = [];
+    for (const side of [-1, 1]) {
+        // Эхлэл: морины хацрын хазаар (cheek)
+        const x1 = 0.92, y1 = 1.54, z1 = side * 0.13;
+        // Төгсгөл: эмээлийн өмнө унаачийн гарын байрлал
+        const x2 = 0.05, y2 = 1.95, z2 = side * 0.18;
+        const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+        const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const geo = new THREE.CylinderGeometry(0.014, 0.014, len, 6);
+        const rein = new THREE.Mesh(geo, mat);
+        rein.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+        rein.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3(dx, dy, dz).normalize()
+        );
+        rein.castShadow = true;
+        horse.add(rein);
+        reins.push(rein);
+    }
+    horse.userData.__longReins = reins;
+}
+
 function _mountHorse(horse) {
     _ridingHorse = horse;
+    _rideBlockerList = null;                     // саад жагсаалт сэргээгдэнэ
+    _attachLongReins(horse);                     // хазаар сунгана
+    // FP rig (хоёр гарын ханцуй) нь camera-д наалдаж морины толгойг
+    // далдалдаг — морь унаж байх үед нууна. Dismount хийхэд буцаагдана.
+    _fpRig.visible = false;
     // Камерыг тухайн морины одоогийн чигт тааруулж урагш харна
     // Морины local +X = толгой → world forward = (cos(rotY), -sin(rotY))
     const a = horse.rotation.y;
     const fwdX =  Math.cos(a);
     const fwdZ = -Math.sin(a);
-    // Эмээлийн world байрлал
-    const sx = horse.position.x + fwdX * -0.1;
-    const sz = horse.position.z + fwdZ * -0.1;
-    camera.position.set(sx, horse.position.y + 2.45, sz);
-    // Толгойг урагш харуулах — морины толгой руу
+    // Эмээлээс жаахан ХОЙШ + дунд өндөрт суух — ингэснээр морины
+    // ТОЛГОЙ ба ХҮЗҮҮ нь камерын урд талд тод харагдана.
+    const sx = horse.position.x + fwdX * -0.35;
+    const sz = horse.position.z + fwdZ * -0.35;
+    camera.position.set(sx, horse.position.y + 2.0, sz);
     camera.lookAt(sx + fwdX * 4, horse.position.y + 2.0, sz + fwdZ * 4);
+    // PointerLock-аас үлдсэн pitch-ийг арилгаж зөвхөн yaw-ийг үлдээнэ —
+    // ингэснээр хэрэглэгч өмнө дээш харсан байсан ч толгой шууд харагдана.
+    const _ml = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+    camera.rotation.set(0, _ml.y, 0, 'YXZ');
     const hint = document.getElementById('walk-hint');
     if (hint) {
         hint.innerHTML = `<b style="color:#FFE9B0">Морь унаж байна</b> — ` +
@@ -6801,16 +6906,125 @@ function _dismountHorse() {
     // Морины хажууд буух
     camera.position.set(hp.x + 1.5, 1.6, hp.z);
     _ridingHorse = null;
+    _rideBlockerList = null;
+    // Хүн дотроос буугаагүй бол FP rig буцаан асаана.
+    if (_possessedPerson) _fpRig.visible = true;
 }
 
 walkControls.addEventListener('unlock', () => {
     if (_possessedPerson) _unpossessPerson();
 });
 
+// ══════════════════════════════════════════════════════════════════
+// СААНЫ ХААЛТ — морь унаж байх үед урд талын саадтай мөргөхгүй
+// ══════════════════════════════════════════════════════════════════
+const _rideRay     = new THREE.Raycaster();
+const _rideOrigin  = new THREE.Vector3();
+const _rideDir     = new THREE.Vector3();
+const _rideUp      = new THREE.Vector3(0, 1, 0);   // world Y
+let   _rideBlockerList   = null;
+let   _rideBlockMsgUntil = 0;
+
+function _isRideExcludedAncestor(obj) {
+    let a = obj;
+    while (a) {
+        if (a.userData) {
+            if (a.userData.isHorse || a.userData.isPerson) return true;
+            if (a.userData.isCow   || a.userData.isCamel  || a.userData.isSheep) return true;
+            if (a.userData.isParticle || a.userData.isFlower || a.userData.isCloud) return true;
+            if (a.userData.isWater || a.userData.isLake) return true;
+        }
+        if (a.name === 'playerRig' || a.name === 'ground' || a.name === 'sky') return true;
+        a = a.parent;
+    }
+    return false;
+}
+function _ensureRideBlockerList() {
+    if (_rideBlockerList) return _rideBlockerList;
+    _rideBlockerList = [];
+    for (const o of scene.children) {
+        if (!o.visible) continue;
+        if (o === _tpRing) continue;
+        if (_isRideExcludedAncestor(o)) continue;
+        _rideBlockerList.push(o);
+    }
+    return _rideBlockerList;
+}
+// Нэг чигт нэг өндөрт raycast. Hit-ийг exclude шалгуураар шүүн ойр зайг буцаана.
+function _rideRayCast(horse, dx, dz, y, maxDist) {
+    _rideDir.set(dx, 0, dz).normalize();
+    _rideOrigin.set(horse.position.x, y, horse.position.z);
+    _rideOrigin.addScaledVector(_rideDir, 0.5);
+    _rideRay.set(_rideOrigin, _rideDir);
+    _rideRay.far = maxDist;
+    const list = _ensureRideBlockerList();
+    const hits = _rideRay.intersectObjects(list, true);
+    for (const h of hits) {
+        if (_isRideExcludedAncestor(h.object)) continue;
+        let a = h.object, skip = false;
+        while (a) { if (a === horse) { skip = true; break; } a = a.parent; }
+        if (skip) continue;
+        return h.distance;
+    }
+    return Infinity;
+}
+// Person алхамд: камерын байрлалаас урагшаа raycast, саадтай уу шалгана.
+// Ger хана, мод, хашаа гэх мэт саадтай мөргөхөөс хамгаалдаг.
+function _walkBlocked(camX, camZ, dx, dz, maxDist) {
+    _rideDir.set(dx, 0, dz).normalize();
+    _rideOrigin.set(camX, 1.0, camZ);
+    _rideOrigin.addScaledVector(_rideDir, 0.15);   // биеийн радиус
+    _rideRay.set(_rideOrigin, _rideDir);
+    _rideRay.far = maxDist;
+    const list = _ensureRideBlockerList();
+    const hits = _rideRay.intersectObjects(list, true);
+    for (const h of hits) {
+        if (_isRideExcludedAncestor(h.object)) continue;
+        return true;
+    }
+    return false;
+}
+// Олон чигт (төв + ±20°) олон өндөрт (хөл + бие) шалгаж хамгийн ойр зайг буцаана.
+function _rideCheckBlock(horse, dx, dz, maxDist = 2.5) {
+    // ±20° offset чиг
+    const ang = 0.35;                                // ~20°
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const lx = dx * c - dz * s, lz = dx * s + dz * c;   // зүүн
+    const rx = dx * c + dz * s, rz = -dx * s + dz * c;  // баруун
+    let nearest = Infinity;
+    for (const y of [0.6, 1.1, 1.6]) {                   // хөл + бие + мөр түвшин
+        nearest = Math.min(nearest, _rideRayCast(horse, dx, dz, y, maxDist));
+        nearest = Math.min(nearest, _rideRayCast(horse, lx, lz, y, maxDist));
+        nearest = Math.min(nearest, _rideRayCast(horse, rx, rz, y, maxDist));
+        if (nearest < 0.5) break;                        // маш ойр — хайхаа болино
+    }
+    return nearest;
+}
+
 // Морь анимаци + хяналт — animation loop-д дуудна
 window._tickRiding = function (delta) {
     if (!_ridingHorse) return;
+    // FP rig (хүний гарын ханцуй) нь camera-д наалдаж морины
+    // толгойг далдалдаг тул морь унаж байх үед үргэлж нуугдах ёстой.
+    if (_fpRig.visible) _fpRig.visible = false;
     const horse = _ridingHorse;
+
+    // ── A/D = камерын yaw эргэлт (хазаар татсантай адил) ──────────
+    // World Y тэнхлэгийг шууд эргүүлэх — pitch, roll-ийг алдагдуулахгүй.
+    const TURN = 1.8;                     // rad/s
+    if (move.a) camera.rotateOnWorldAxis(_rideUp, TURN * delta);
+    if (move.d) camera.rotateOnWorldAxis(_rideUp, -TURN * delta);
+    // Pitch clamp — толгой үргэлж visible байх (хэт дээш харахыг хорино)
+    {
+        const _re = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+        const before = _re.x;
+        _re.x = Math.max(-0.9, Math.min(0.15, _re.x));
+        if (Math.abs(_re.x - before) > 1e-4 || Math.abs(_re.z) > 1e-4) {
+            _re.z = 0;
+            camera.quaternion.setFromEuler(_re);
+        }
+    }
+
     // Камерын урагшаа чигийг авах (Y=0)
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
@@ -6826,6 +7040,53 @@ window._tickRiding = function (delta) {
     if (move.w) speed = 7;
     else if (move.s) speed = -3;
 
+    // ── Урагшаа саадтай уу? — гэр, мод, хашаа, чулуу, тэрэг гэх мэт ──
+    // 3 чиг (төв+зүүн+баруун) × 3 өндөр = 9 ray шалгана
+    if (speed > 0) {
+        const blockDist = _rideCheckBlock(horse, dir.x, dir.z, 2.5);
+        if (blockDist < 1.8) {
+            speed = 0;
+            if (performance.now() > _rideBlockMsgUntil) {
+                _showMission('🚫 Сааттай!\nA/D-аар тойроод явна уу', 1500);
+                _rideBlockMsgUntil = performance.now() + 2200;
+            }
+        }
+    }
+    // ── ГЭР-ИЙН ЦИЛИНДР ХАМГААЛАЛТ ─────────────────────────────────
+    // Ger (0,0,0)-д радиус 5м, хана үргэлж visible. Хаалга +X чигт
+    // (theta=0) ~±14° өргөнтэй. Морь хана руу очвол ХОЁР алхамаар хамгаална:
+    //  1) Speed-ийг 0 болгож зогсооно
+    //  2) Хэрэв хана дотор аль хэдийн хальсан бол гадагш ТҮЛХҮҮЛНЭ
+    if (speed !== 0) {
+        const newX = horse.position.x + dir.x * speed * delta;
+        const newZ = horse.position.z + dir.z * speed * delta;
+        const r2 = newX * newX + newZ * newZ;
+        if (r2 > 14 && r2 < 38) {                 // 3.74м < r < 6.16м (тогтворгүй буффер)
+            const theta = Math.atan2(newZ, newX);
+            if (Math.abs(theta) > 0.18) {
+                speed = 0;
+                if (performance.now() > _rideBlockMsgUntil) {
+                    _showMission('🚫 Гэрийн хана!\nХаалгаар л явна уу', 1500);
+                    _rideBlockMsgUntil = performance.now() + 2200;
+                }
+            }
+        }
+    }
+    // Аль хэдийн хана дотор хальсан байж магадгүй — гадагш түлхэх
+    const curR2 = horse.position.x * horse.position.x + horse.position.z * horse.position.z;
+    if (curR2 > 14 && curR2 < 38) {
+        const curTheta = Math.atan2(horse.position.z, horse.position.x);
+        if (Math.abs(curTheta) > 0.18) {
+            // Хана дотор хальсан — хамгийн ойр аюулгүй талд (дотор/гадна) шилжүүлнэ
+            const cr = Math.sqrt(curR2);
+            const safeR = cr < 5 ? 3.7 : 6.3;
+            const ux = horse.position.x / cr;
+            const uz = horse.position.z / cr;
+            horse.position.x = ux * safeR;
+            horse.position.z = uz * safeR;
+        }
+    }
+
     if (speed !== 0) {
         horse.position.x += dir.x * speed * delta;
         horse.position.z += dir.z * speed * delta;
@@ -6836,17 +7097,14 @@ window._tickRiding = function (delta) {
         horse.position.y *= 0.9;
     }
 
-    // Камерыг эмээлийн (saddle) дээр унаачийн нүдний түвшинд байрлуулна
-    // Saddle local ≈ (-0.05, 1.4, 0). Хүний толгой нэмэгдээд эх y ≈ 2.4
-    // Морины эргэлтэд тааруулсан seat-ийн world байрлал:
-    const seatLocalX = -0.1;       // эмээл бага зэрэг хойшоо
+    // Камерыг эмээлээс жаахан хойш + дунд өндөрт → морины толгой урд талд харагдана
+    const seatLocalX = -0.35;
     const cosA = Math.cos(targetRotY);
     const sinA = Math.sin(targetRotY);
     const sx = horse.position.x + cosA * seatLocalX;
     const sz = horse.position.z - sinA * seatLocalX;
-    // Гэлдрэлийн bob дотор y-д нэмнэ
     const bob = (speed !== 0) ? Math.sin(performance.now() * 0.024) * 0.04 : 0;
-    camera.position.set(sx, horse.position.y + 2.45 + bob, sz);
+    camera.position.set(sx, horse.position.y + 2.0 + bob, sz);
 };
 
 renderer.domElement.addEventListener('click', (ev) => {

@@ -131,7 +131,9 @@ export class Tuurga {
                 R, R, H * 0.98, 40, 1, true, tStart, half);
 
             const mesh = new THREE.Mesh(geo, mat.clone());
-            mesh.position.y        = H * 0.48;
+            // Y-offset нь group дээр (mesh дотор биш) — VR drag&snap home
+            // байрлал зөв хадгалагдахын тулд.
+            mesh.position.y        = 0;
             mesh.castShadow        = true;
             mesh.receiveShadow     = true;
             mesh.userData.isClickMesh = true;
@@ -140,6 +142,7 @@ export class Tuurga {
             panel.name        = `tuurga-${i + 1}`;
             panel.userData.toggleable = true;
             panel.userData.label      = `Туурга ${i + 1}`;
+            panel.position.y  = H * 0.48;
             panel.add(mesh);
 
             this._panels.push(panel);
